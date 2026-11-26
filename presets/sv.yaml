@@ -1,6 +1,10 @@
 # Swedish preset: device names are what you say to Google, so they are in Swedish.
-# Used by `archnest init --preset sv` (the bootstrap asks). Routines: docs/routines/google-home.sv.yaml
-name: Datorn
+# Used by `archnest init --preset sv` (the bootstrap asks). Voice phrases: `phrases` below → `archnest routines`.
+name: archnest            # the bridge itself in Google Home; keep it unlike any device name
+
+# Put all archnest devices in this Google Home room (Home app → device → Room). A room of
+# their own keeps "turn off the lights in the living room" away from the screens and volume.
+room: Datorhörnan
 
 matter:
   port: 5540
@@ -16,9 +20,9 @@ screens:
 
 # Apps archnest can open/close. `match` is checked against window class and title.
 apps:
-  edge:
-    launch: uwsm-app -- microsoft-edge-stable
-    match: microsoft-edge
+  browser:                 # `archnest init` fills in your default browser and terminal
+    launch: omarchy-launch-browser
+    match: chromium
   spotify:
     launch: omarchy-launch-spotify
     match: spotify
@@ -79,12 +83,17 @@ devices:
     level: volume.set
     probe: "LC_ALL=C pactl get-sink-mute \"$(omarchy-audio-output-sink)\" | grep -q 'Mute: no'"
     levelProbe: "LC_ALL=C pactl get-sink-volume \"$(omarchy-audio-output-sink)\" | awk 'NR==1{for(i=1;i<=NF;i++) if($i ~ /%$/){sub(\"%\",\"\",$i); print $i; exit}}'"
+    phrases:
+      off: ["tysta datorn"]
 
   - name: Datormusiken
     type: plug                 # shows whether anything is playing (Spotify, browser, …)
     on: spotify.here
     off: media.pause
     probe: playerctl -a status 2>/dev/null | grep -qx Playing
+    phrases:
+      on: ["spela musiken på datorn", "flytta musiken till datorn"]
+      off: ["pausa musiken på datorn"]
 
   - name: Musik till datorn
     type: plug                 # flyttar Spotify från Nest till datorn ("spela X på Spotify")
@@ -95,10 +104,14 @@ devices:
   - name: Nästa låt på datorn
     type: momentary
     on: media.next
+    phrases:
+      on: ["nästa låt på datorn"]
 
   - name: Förra låten på datorn
     type: momentary
     on: media.previous
+    phrases:
+      on: ["förra låten på datorn"]
 
   # Desktop toggles; each one shows its real state in Google Home.
   - name: Stör ej
@@ -124,36 +137,61 @@ devices:
     type: plug
     on: { open: spotify, screen: right }
     off: { close: spotify }
+    phrases:
+      on: ["öppna spotify på datorn", "starta spotify på datorn"]
+      off: ["stäng spotify på datorn"]
 
   - name: Webbläsaren
     type: momentary          # open only: closing the browser by voice could lose tabs
-    on: { open: edge, screen: left }
+    on: { open: browser, screen: left }
+    phrases:
+      on: ["öppna webbläsaren", "öppna webbläsaren på datorn"]
 
   - name: Ny terminal
     type: momentary          # always a new window; never closes terminals (this one included)
     on: { open: terminal, screen: middle, new: true }
+    phrases:
+      on: ["öppna en terminal", "ny terminal på datorn"]
 
   # A scene: everything at once, each on its own screen.
   - name: Arbetsläge
     type: momentary
     on:
-      - { open: edge, screen: left }
+      - { open: browser, screen: left }
       - { open: terminal, screen: middle, new: true }
       - { open: spotify, screen: right }
+    phrases:
+      on: ["dags att jobba", "starta arbetsläge"]
 
   # Triggered by routines ("stäng av datorn", "starta om datorn", ...).
   - name: Avstängning
     type: momentary
     on: power.shutdown
+    phrases:
+      on: ["stäng av datorn", "stäng ner datorn", "datorn kan stängas av"]
 
   - name: Omstart
     type: momentary
     on: power.reboot
+    phrases:
+      on: ["starta om datorn", "omstart av datorn"]
 
   - name: Viloläge
     type: momentary
     on: power.suspend
+    phrases:
+      on: ["datorn ska sova", "sätt datorn i viloläge"]
 
   - name: Avbryt avstängning
     type: momentary
     on: power.cancel
+    phrases:
+      on: ["avbryt avstängningen", "avbryt omstarten", "stäng inte av datorn"]
+
+# Fraser som styr flera enheter på en gång (kommer också med i `archnest routines`).
+routines:
+  - phrases: ["jag är klar med datorn"]
+    actions:
+      - Spotify-appen: false
+      - Datorn: true              # lås
+      - Skärmarna: false

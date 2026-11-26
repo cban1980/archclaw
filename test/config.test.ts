@@ -66,3 +66,23 @@ test("forbidden passcodes are rejected", () => {
 test("play refs must name a known app", () => {
     assert.throws(() => loadConfig(write("devices:\n  - { name: X, on: { play: nope } }\n")), /unknown app/);
 });
+
+test("the Swedish preset is valid", () => {
+    const c = loadConfig(new URL("../presets/sv.yaml", import.meta.url).pathname);
+    assert.equal(c.room, "Datorhörnan");
+});
+
+test("the bridge may not share a name with a device", () => {
+    const p = write("name: Datorn\ndevices:\n  - { name: Datorn, type: lock, on: power.lock }\n");
+    assert.throws(() => loadConfig(p), /\(2\)/);
+});
+
+test("routines must name existing devices", () => {
+    const p = write("devices:\n  - { name: X, on: dnd.on }\nroutines:\n  - { phrases: [hi], actions: [{ Y: true }] }\n");
+    assert.throws(() => loadConfig(p), /unknown device "Y"/);
+});
+
+test("off phrases need an off action", () => {
+    const p = write("devices:\n  - { name: X, type: momentary, on: dnd.on, phrases: { off: [stop] } }\n");
+    assert.throws(() => loadConfig(p), /phrases.off/);
+});

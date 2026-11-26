@@ -1,7 +1,11 @@
 # archnest config. `archnest init` writes this to ~/.config/archnest/config.yaml with your
 # monitors and a random pairing passcode. Device names are what you say to Google.
 # A Swedish preset lives in presets/sv.yaml (`archnest init --preset sv`).
-name: Computer
+name: archnest            # the bridge itself in Google Home; keep it unlike any device name
+
+# Put all archnest devices in this Google Home room (Home app → device → Room). A room of
+# their own keeps "turn off the lights in the living room" away from the screens and volume.
+room: Desk
 
 matter:
   port: 5540
@@ -17,9 +21,9 @@ screens:
 
 # Apps archnest can open/close. `match` is checked against window class and title.
 apps:
-  edge:
-    launch: uwsm-app -- microsoft-edge-stable
-    match: microsoft-edge
+  browser:                 # `archnest init` fills in your default browser and terminal
+    launch: omarchy-launch-browser
+    match: chromium
   spotify:
     launch: omarchy-launch-spotify
     match: spotify
@@ -80,12 +84,17 @@ devices:
     level: volume.set
     probe: "LC_ALL=C pactl get-sink-mute \"$(omarchy-audio-output-sink)\" | grep -q 'Mute: no'"
     levelProbe: "LC_ALL=C pactl get-sink-volume \"$(omarchy-audio-output-sink)\" | awk 'NR==1{for(i=1;i<=NF;i++) if($i ~ /%$/){sub(\"%\",\"\",$i); print $i; exit}}'"
+    phrases:
+      off: ["mute the computer"]
 
   - name: Computer music
     type: plug                 # shows whether anything is playing (Spotify, browser, …)
     on: spotify.here
     off: media.pause
     probe: playerctl -a status 2>/dev/null | grep -qx Playing
+    phrases:
+      on: ["play the music on the computer", "move the music to the computer"]
+      off: ["pause the music on the computer"]
 
   - name: Music to computer
     type: plug                 # moves Spotify playback from the Nest to this PC ("play X on Spotify")
@@ -96,10 +105,14 @@ devices:
   - name: Next track on computer
     type: momentary
     on: media.next
+    phrases:
+      on: ["next song on the computer"]
 
   - name: Previous track on computer
     type: momentary
     on: media.previous
+    phrases:
+      on: ["previous song on the computer"]
 
   # Desktop toggles; each one shows its real state in Google Home.
   - name: Do not disturb
@@ -125,36 +138,61 @@ devices:
     type: plug
     on: { open: spotify, screen: right }
     off: { close: spotify }
+    phrases:
+      on: ["open spotify on the computer", "start spotify on the computer"]
+      off: ["close spotify on the computer"]
 
   - name: Browser
     type: momentary          # open only: closing the browser by voice could lose tabs
-    on: { open: edge, screen: left }
+    on: { open: browser, screen: left }
+    phrases:
+      on: ["open the browser", "open the browser on the computer"]
 
   - name: New terminal
     type: momentary          # always a new window; never closes terminals (this one included)
     on: { open: terminal, screen: middle, new: true }
+    phrases:
+      on: ["open a terminal", "new terminal on the computer"]
 
   # A scene: everything at once, each on its own screen.
   - name: Work mode
     type: momentary
     on:
-      - { open: edge, screen: left }
+      - { open: browser, screen: left }
       - { open: terminal, screen: middle, new: true }
       - { open: spotify, screen: right }
+    phrases:
+      on: ["time to work", "start work mode"]
 
   # Triggered by routines ("shut down the computer", "restart the computer", ...).
   - name: Computer shutdown
     type: momentary
     on: power.shutdown
+    phrases:
+      on: ["shut down the computer", "turn off the computer for the night", "power off the computer"]
 
   - name: Computer restart
     type: momentary
     on: power.reboot
+    phrases:
+      on: ["restart the computer", "reboot the computer"]
 
   - name: Computer sleep
     type: momentary
     on: power.suspend
+    phrases:
+      on: ["put the computer to sleep", "computer go to sleep"]
 
   - name: Cancel shutdown
     type: momentary
     on: power.cancel
+    phrases:
+      on: ["cancel the shutdown", "cancel the restart", "don't shut down the computer"]
+
+# Phrases that switch several devices at once (also in `archnest routines`).
+routines:
+  - phrases: ["i'm done with the computer"]
+    actions:
+      - Spotify app: false
+      - Computer: true            # lock
+      - Screens: false

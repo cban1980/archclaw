@@ -29,6 +29,7 @@ const usage = `usage: archnest <command>
   status                         service, pairing and config at a glance
   check                          validate the config
   list                           list built-in actions
+  routines [--copy]              Google Home script-editor routines from your config's phrases
   run <action> [--dry-run]       run one action locally, with the same safety rules
   trigger <device> on|off        act as if Google Home switched a device
   spotify login [--client-id ID] log in to Spotify (for moving music from the Nest to this PC)
@@ -148,11 +149,13 @@ async function main() {
             const preset = option("--preset") ?? "en";
             const presets: Record<string, string> = { en: "../config.example.yaml", sv: "../presets/sv.yaml" };
             if (!presets[preset]) throw new Error(`unknown preset ${preset}; choose ${Object.keys(presets).join(" or ")}`);
+            const { detectApps } = await import("./init.ts");
             const result = initConfig({
                 examplePath: fileURLToPath(new URL(presets[preset], import.meta.url)),
                 target: paths.config,
                 name: option("--name"),
                 monitors,
+                apps: detectApps(sh),
                 force: flag("--force"),
             });
             if (!result.written) {
@@ -161,6 +164,7 @@ async function main() {
             }
             console.log(`wrote ${paths.config}`);
             for (const [label, monitor] of Object.entries(result.screens)) console.log(`  screen ${label} = ${monitor}`);
+            for (const [key, app] of Object.entries(result.apps)) console.log(`  app ${key} = ${app.launch} (window: ${app.match})`);
             return;
         }
         case "pair": {
@@ -290,6 +294,15 @@ async function main() {
                     console.log(`playing:   ${pb?.is_playing ? `${pb.item?.name ?? "?"} on ${pb.device?.name}` : "nothing"}`);
                 }
             } else throw new Error("usage: archnest spotify login|status|logout");
+            return;
+        }
+        case "routines": {
+            const { generateRoutines } = await import("./routines.ts");
+            const yaml = generateRoutines(loadConfig());
+            if (flag("--copy")) {
+                execFileSync("wl-copy", [], { input: yaml });
+                console.error("Copied. Paste it at home.google.com → Automations → Add new → Script editor.");
+            } else process.stdout.write(yaml);
             return;
         }
         case "list":

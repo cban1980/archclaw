@@ -38,11 +38,29 @@ const device = z
         level: z.string().min(1).optional(),
         /** dimmer: shell command that prints the current level 0–100. */
         levelProbe: z.string().min(1).optional(),
+        /**
+         * Extra voice phrases for Google Home routines (`archnest routines`): saying one of
+         * `on` switches the device on (locks a lock), one of `off` switches it off.
+         */
+        phrases: z
+            .object({ on: z.array(z.string().min(1)).optional(), off: z.array(z.string().min(1)).optional() })
+            .strict()
+            .optional(),
     })
     .strict()
     .refine(d => d.on || d.off || d.level, "a device needs an `on`, `off` or `level` action")
     .refine(d => (d.type === "dimmer") === (d.level !== undefined), "`level` is required for, and only allowed on, dimmers")
-    .refine(d => !["momentary", "lock"].includes(d.type) || !d.off, "momentary and lock devices only take `on`");
+    .refine(d => !["momentary", "lock"].includes(d.type) || !d.off, "momentary and lock devices only take `on`")
+    .refine(d => !d.phrases?.off?.length || d.off || d.type === "dimmer", "`phrases.off` needs an `off` action");
+
+/** A routine that switches several devices from one phrase ("I'm done with the computer"). */
+const routine = z
+    .object({
+        phrases: z.array(z.string().min(1)).min(1),
+        /** Device name → true (on / lock) or false (off). Run in order. */
+        actions: z.array(z.record(z.string(), z.boolean())).min(1),
+    })
+    .strict();
 
 // Risky actions are only allowed on momentary devices: "turn off <something>" is too easy
 // for a voice assistant to match by accident, and a plug's off-state invites it.
@@ -55,7 +73,14 @@ const INVALID_PASSCODES = new Set([
 
 const schema = z
     .object({
-        name: z.string().default("Arch PC"),
+        /** The bridge's name in Google Home. Keep it different from every device name. */
+        name: z.string().min(1).default("archnest"),
+        /**
+         * The Google Home room you put archnest's devices in (do it once in the app). Routines
+         * refer to devices as "<name> - <room>". Use a room of their own, so "turn off the
+         * lights in the living room" doesn't switch off the screens.
+         */
+        room: z.string().min(1).default("Desk"),
         /** Friendly screen names → Hyprland monitor names (`hyprctl monitors`). */
         screens: z.record(z.string(), z.string()).default({}),
         apps: z
@@ -121,6 +146,8 @@ const schema = z
             .strict()
             .default({ app: "spotify" }),
         devices: z.array(device).min(1),
+        /** Multi-device phrases for `archnest routines`. */
+        routines: z.array(routine).default([]),
     })
     .strict();
 
@@ -164,6 +191,19 @@ export function loadConfig(path = paths.config): Config {
         const key = slug(d.name);
         if (names.has(key)) throw new Error(`invalid config ${path}: duplicate device name "${d.name}"`);
         names.add(key);
+    }
+    if (names.has(slug(result.data.name))) {
+        throw new Error(
+            `invalid config ${path}: the bridge name "${result.data.name}" is also a device name; ` +
+                `Google Home would call one of them "${result.data.name} (2)". Rename the bridge (top-level \`name\`).`,
+        );
+    }
+    for (const r of result.data.routines) {
+        for (const step of r.actions) {
+            for (const name of Object.keys(step)) {
+                if (!names.has(slug(name))) throw new Error(`invalid config ${path}: routine "${r.phrases[0]}" uses unknown device "${name}"`);
+            }
+        }
     }
     return result.data;
 }
