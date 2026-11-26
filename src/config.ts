@@ -28,6 +28,11 @@ const app = z
         match: z.string().min(1),
         /** MPRIS player name for `play` (`playerctl -l`); defaults to the app's key. */
         player: z.string().min(1).optional(),
+        /**
+         * Accept "Leave site?" / "Close anyway?" when closing: if a window is still there right
+         * after closing it, archclaw presses Return in it. Only for apps whose default button closes.
+         */
+        confirmClose: z.boolean().optional(),
         /** What it is, for Claude ("RDP session to the work PC"). */
         description: z.string().min(1).optional(),
     })

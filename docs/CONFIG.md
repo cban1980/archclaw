@@ -28,6 +28,7 @@ apps:
     launch: omarchy-launch-webapp 'https://discord.com/channels/@me'
     match: discord                    # a word in the window class or title
     description: chat with friends    # helps Claude pick the right one
+    confirmClose: true                # accept "Leave site?" when closing (presses Return if the window stays)
   spotify:
     launch: omarchy-launch-spotify
     match: spotify

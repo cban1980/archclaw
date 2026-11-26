@@ -8,6 +8,8 @@ export type AppConfig = {
     match: string;
     /** MPRIS player name used by `playApp` (see `playerctl -l`); defaults to the app's key. */
     player?: string;
+    /** Press Return in windows that survive closing (accepts "Leave site?"). */
+    confirmClose?: boolean;
 };
 
 export type Client = { address: string; class: string; title: string; monitor: number; workspace?: { name: string }; focusHistoryID?: number };
@@ -96,6 +98,16 @@ export function openApp(name: string, app: AppConfig, opts: { monitor?: string; 
     };
 }
 
+const CONFIRM_DELAY_MS = 800;
+
+/** Presses Return in one window (the default button of a confirmation dialog). */
+const confirm = (exec: Executor, address: string) =>
+    dispatch(
+        exec,
+        `hl.dsp.send_shortcut({ mods = "", key = "Return", window = "address:${address}" })`,
+        `sendshortcut ,Return,address:${address}`,
+    );
+
 export const closeWindow = (exec: Executor, address: string) =>
     dispatch(exec, `hl.dsp.window.close({ window = "address:${address}" })`, `closewindow address:${address}`);
 
@@ -105,8 +117,21 @@ export function closeApp(name: string, app: AppConfig): Action {
         id: `app.close:${name}`,
         title: `Close ${name}`,
         risk: "safe",
-        async run({ exec }) {
-            for (const c of (await clients(exec)).filter(c => matches(app, c))) await closeWindow(exec, c.address);
+        async run({ exec, log }) {
+            const targets = (await clients(exec)).filter(c => matches(app, c)).map(c => c.address);
+            for (const address of targets) await closeWindow(exec, address);
+            if (!app.confirmClose || !targets.length) return;
+            // A window still there shortly after is showing a confirmation ("Leave site?"); its
+            // default button closes it. Two rounds, for a dialog per tab.
+            for (let round = 0; round < 2; round++) {
+                await sleep(CONFIRM_DELAY_MS);
+                const left = (await clients(exec)).filter(c => targets.includes(c.address));
+                if (!left.length) return;
+                for (const c of left) {
+                    log.info(`${name}: confirming close of "${c.title}"`);
+                    await confirm(exec, c.address);
+                }
+            }
         },
     };
 }

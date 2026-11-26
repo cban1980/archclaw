@@ -82,3 +82,27 @@ test("play opens the app when no player exists, waits for it, then plays", async
     assert.match(cmds[0], /setsid -f omarchy-launch-spotify/);
     assert.equal(cmds.at(-1), "playerctl -p 'spotify' play");
 });
+
+test("closing an app with confirmClose presses Return in windows that stay open", async () => {
+    const { closeApp } = await import("../src/actions/apps.ts");
+    const ran: string[] = [];
+    let open = true;
+    const exec = {
+        sh: async (c: string) => {
+            ran.push(c);
+            if (c.includes("send_shortcut")) open = false;
+            return 0;
+        },
+        test: async () => true,
+        capture: async () => JSON.stringify(open ? [{ address: "0xa", class: "microsoft-edge", title: "Docs", monitor: 0 }] : []),
+    };
+    const log = { info() {}, warn() {}, error() {} };
+    await closeApp("edge", { launch: "x", match: "microsoft-edge", confirmClose: true }).run({ exec, log, cancelPending: () => 0 });
+    assert.ok(ran.some(c => c.includes("window.close")));
+    assert.equal(ran.filter(c => c.includes('key = "Return"')).length, 1);
+
+    ran.length = 0;
+    open = true;
+    await closeApp("term", { launch: "x", match: "microsoft-edge" }).run({ exec, log, cancelPending: () => 0 });
+    assert.ok(!ran.some(c => c.includes("Return")), "never without confirmClose");
+});

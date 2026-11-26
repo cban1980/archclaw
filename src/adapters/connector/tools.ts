@@ -365,10 +365,11 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
                 webapp_url: z.string().url().optional(),
                 match: z.string().min(1).optional(),
                 description: z.string().optional(),
+                confirm_close: z.boolean().optional().describe("Accept 'Leave site?'-style prompts when closing (browsers, web apps)"),
             },
             annotations: { destructiveHint: false, openWorldHint: false },
         },
-        async ({ key, desktop_id, webapp_url, match, description }) =>
+        async ({ key, desktop_id, webapp_url, match, description, confirm_close }) =>
             edit(`app ${key} saved`, () => {
                 if (Boolean(desktop_id) === Boolean(webapp_url)) throw new Error("give exactly one of desktop_id or webapp_url");
                 if (config.apps[key] && !/^(uwsm-app -- [\w.-]+\.desktop|omarchy-launch-webapp '[^']+')$/.test(config.apps[key]!.launch)) {
@@ -376,7 +377,12 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
                 }
                 const launch = desktop_id ? appFromDesktopId(desktop_id).launch : webAppLaunch(webapp_url!);
                 const defMatch = desktop_id ? appFromDesktopId(desktop_id).match : new URL(webapp_url!).hostname.split(".").at(-2)!;
-                return store.saveApp(key, { launch, match: match ?? defMatch, ...(description ? { description } : {}) });
+                return store.saveApp(key, {
+                    launch,
+                    match: match ?? defMatch,
+                    ...(confirm_close !== undefined ? { confirmClose: confirm_close } : {}),
+                    ...(description ? { description } : {}),
+                });
             }),
     );
 
