@@ -306,7 +306,7 @@ async function main() {
             return;
         }
         case "list":
-            for (const a of registryFor(tryConfig()).list()) console.log(`${a.id.padEnd(18)} ${a.risk.padEnd(8)} ${a.title}`);
+            for (const a of registryFor(tryConfig()).list()) console.log(`${a.id.padEnd(20)} ${a.risk.padEnd(8)} ${a.title}`);
             return;
         case "check": {
             const config = loadConfig();

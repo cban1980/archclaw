@@ -77,6 +77,7 @@ src/
                          PKCE, 1 h access tokens (memory), rotating 30-day refresh tokens
     store.ts             owner password (scrypt), clients, refresh-token hashes (0600 JSON)
     tools.ts             MCP tools → the same Dispatcher/Safety as Google Home
+docs/CONFIG.md                configuration reference
 config.example.yaml           default config (English device names)
 presets/sv.yaml               Swedish device names
 systemd/archnest.service.in   user unit template (rendered by bootstrap.sh)

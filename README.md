@@ -15,6 +15,8 @@ come in English or Swedish, and you can add your own devices, apps, scenes and p
 
 **Requirements:** Arch Linux with [Omarchy](https://omarchy.org) (Hyprland) · Node ≥ 22.18 ·
 a Google Home/Nest speaker or display (a Matter controller) · the Google Home app.
+Plain Arch + Hyprland works too, except a few Omarchy toggles; see
+[what needs Omarchy](docs/CONFIG.md#what-needs-omarchy).
 
 ## Install
 
@@ -118,6 +120,9 @@ devices:
 - **`routines:`** at the top level: phrases that switch several devices at once.
 - **New devices:** they appear in Google Home within a minute of the restart. **Give each one the
   room**, then regenerate the routines.
+
+**[docs/CONFIG.md](docs/CONFIG.md)** is the full reference: every setting, device type, built-in
+action, app matching, probe examples and phrase tips.
 
 ## Spotify: "play X" from the Nest, on the PC
 
