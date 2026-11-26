@@ -57,7 +57,7 @@ Default names (English preset). The Swedish preset has the same devices, e.g. *D
 | **Computer** (lock) | "lock the computer" | `omarchy-system-lock`. Shows the real lock state. **Remote unlock is always refused.** |
 | **Screens** (light) | "turn off/on the screens" | DPMS off/on (Hyprland 0.56 syntax with fallback) |
 | **Computer volume** (dimmer) | "set computer volume to 30 percent" | `pactl` on Omarchy's output sink; on/off = unmute/mute |
-| **Computer music** (plug) | "turn off computer music" | `playerctl`; shows whether something is playing |
+| **Computer music** (plug) | "turn on/off computer music" | on: plays Spotify, starting it on the right-hand screen if needed; off: pauses everything. Shows whether something is playing |
 | **Next / Previous track on computer** | via routines | `playerctl next/previous` |
 | **Do not disturb**, **Night light**, **Keep computer awake** (plugs) | "turn on do not disturb" | Omarchy's toggles, with live state |
 | **Spotify app** (plug) | "open spotify on the computer" (routine) | opens Spotify on the right-hand screen, or closes it |

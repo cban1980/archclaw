@@ -6,6 +6,8 @@ export type AppConfig = {
     launch: string;
     /** Matched (case-insensitive, whole word) against window class and title. */
     match: string;
+    /** MPRIS player name used by `playApp` (see `playerctl -l`); defaults to the app's key. */
+    player?: string;
 };
 
 type Client = { address: string; class: string; title: string; monitor: number };
@@ -104,6 +106,48 @@ export function closeApp(name: string, app: AppConfig): Action {
             for (const c of (await clients(exec)).filter(c => matches(app, c))) {
                 await dispatch(exec, `hl.dsp.window.close({ window = "address:${c.address}" })`, `closewindow address:${c.address}`);
             }
+        },
+    };
+}
+
+const WAIT_FOR_PLAYER_MS = 30_000;
+const WAIT_FOR_PLAYING_MS = 8_000;
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+/**
+ * Plays music in an app over MPRIS. If the app's player is already there it just resumes
+ * (no window moves or focus changes). Otherwise it opens the app (on `monitor`), waits for
+ * the player to appear and starts playback, retrying while the app finishes loading.
+ */
+export function playApp(name: string, app: AppConfig, opts: { monitor?: string } = {}): Action {
+    const player = app.player ?? name;
+    const ctl = (cmd: string) => `playerctl -p '${player.replace(/'/g, "")}' ${cmd}`;
+    return {
+        id: `app.play:${name}`,
+        title: `Play ${name}`,
+        risk: "safe",
+        async run(ctx) {
+            const { exec, log } = ctx;
+            const status = async () => (await exec.capture(`${ctl("status")} 2>/dev/null`)).trim();
+            if (await status()) {
+                await exec.sh(ctl("play"));
+                return;
+            }
+            await openApp(name, app, opts).run(ctx);
+            const deadline = Date.now() + WAIT_FOR_PLAYER_MS;
+            while (!(await status())) {
+                if (Date.now() > deadline) return log.warn(`${name}: no "${player}" player appeared within ${WAIT_FOR_PLAYER_MS / 1000} s`);
+                await sleep(POLL_MS);
+            }
+            // Freshly started apps often ignore the first play while they restore the last track.
+            const playing = Date.now() + WAIT_FOR_PLAYING_MS;
+            do {
+                await exec.sh(ctl("play"));
+                await sleep(1000);
+                if ((await status()) === "Playing") return;
+            } while (Date.now() < playing);
+            log.warn(`${name}: started, but playback didn't begin (nothing queued?)`);
         },
     };
 }

@@ -10,6 +10,8 @@ const singleRef = z.union([
     /** Open (or focus) an app from `apps`, optionally on a screen from `screens` (or a monitor name). */
     z.object({ open: z.string().min(1), screen: z.string().min(1).optional(), new: z.boolean().optional() }).strict(),
     z.object({ close: z.string().min(1) }).strict(),
+    /** Play music in an app (MPRIS): resumes it if running, otherwise opens it (on `screen`) and starts playback. */
+    z.object({ play: z.string().min(1), screen: z.string().min(1).optional() }).strict(),
 ]);
 /** One action, or a list run in order (a "scene"). */
 const actionRef = z.union([singleRef, z.array(singleRef).min(1)]);
@@ -57,7 +59,17 @@ const schema = z
         /** Friendly screen names → Hyprland monitor names (`hyprctl monitors`). */
         screens: z.record(z.string(), z.string()).default({}),
         apps: z
-            .record(z.string(), z.object({ launch: z.string().min(1), match: z.string().min(1) }).strict())
+            .record(
+                z.string(),
+                z
+                    .object({
+                        launch: z.string().min(1),
+                        match: z.string().min(1),
+                        /** MPRIS player name for `play` (`playerctl -l`); defaults to the app's key. */
+                        player: z.string().min(1).optional(),
+                    })
+                    .strict(),
+            )
             .default({}),
         matter: z
             .object({
@@ -126,7 +138,8 @@ export function loadConfig(path = paths.config): Config {
             throw new Error(`invalid config ${path}: "${d.name}": power actions can't be part of a list`);
         }
         for (const r of refsOf(d)) {
-            const app = typeof r === "object" && ("open" in r ? r.open : "close" in r ? r.close : undefined);
+            const app =
+                typeof r === "object" && ("open" in r ? r.open : "close" in r ? r.close : "play" in r ? r.play : undefined);
             if (app && !result.data.apps[app]) throw new Error(`invalid config ${path}: "${d.name}" uses unknown app "${app}"`);
         }
     }

@@ -62,3 +62,7 @@ test("forbidden passcodes are rejected", () => {
     const p = write("matter: { passcode: 12345678 }\ndevices:\n  - { name: X, on: media.play }\n");
     assert.throws(() => loadConfig(p), /passcode/);
 });
+
+test("play refs must name a known app", () => {
+    assert.throws(() => loadConfig(write("devices:\n  - { name: X, on: { play: nope } }\n")), /unknown app/);
+});

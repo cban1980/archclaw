@@ -56,7 +56,7 @@ src/
   config.ts              YAML schema, validation, paths, slug (stable endpoint ids, diacritics stripped)
   init.ts                config from a preset (en/sv): monitors → left/middle/right, random passcode
   pairing.ts             QR/manual code from the config; paired state from Matter storage
-  resolve.ts             action refs → Action: ids, { run }, { open, screen, new }, { close }, lists
+  resolve.ts             action refs → Action: ids, { run }, { open, screen, new }, { close }, { play, screen }, lists
   core/
     action.ts            Action, Risk, Source, Outcome, ActionParams
     dispatcher.ts        Registry + Dispatcher
@@ -123,7 +123,7 @@ bootstrap.sh                  gum installer
 | Lock the screen | Matter DoorLock; probe `omarchy-hyprland-session-locked` | ✅ lock only, unlock refused |
 | Screens on/off | OnOffLight + Hyprland DPMS | ✅ |
 | Volume / mute | DimmableLight ↔ `pactl` on `omarchy-audio-output-sink` | ✅ debounced 400 ms |
-| Play/pause/next | `playerctl` (MPRIS) | ✅ plug with "is playing" probe + buttons |
+| Play/pause/next | `playerctl` (MPRIS); `{ play: app }` starts the app first if needed | ✅ plug with "is playing" probe + buttons |
 | Do not disturb | `omarchy-shell notifications setDnd/isDnd` | ✅ |
 | Night light | `omarchy-toggle-nightlight` (toggle-only → check state first) | ✅ |
 | Keep awake | `omarchy-toggle-idle stay-awake/allow-idle/status` | ✅ |

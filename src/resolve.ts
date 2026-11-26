@@ -1,4 +1,4 @@
-import { closeApp, openApp } from "./actions/apps.ts";
+import { closeApp, openApp, playApp } from "./actions/apps.ts";
 import type { ActionRef, Config } from "./config.ts";
 import type { Action } from "./core/action.ts";
 import type { Registry } from "./core/dispatcher.ts";
@@ -28,6 +28,12 @@ export function resolveRef(ref: ActionRef, registry: Registry, config: Pick<Conf
         if (!app) throw new Error(`unknown app "${ref.open}"`);
         const monitor = ref.screen ? (config.screens[ref.screen] ?? ref.screen) : undefined;
         return openApp(ref.open, app, { monitor, alwaysNew: ref.new });
+    }
+    if (typeof ref === "object" && "play" in ref) {
+        const app = config.apps[ref.play];
+        if (!app) throw new Error(`unknown app "${ref.play}"`);
+        const monitor = ref.screen ? (config.screens[ref.screen] ?? ref.screen) : undefined;
+        return playApp(ref.play, app, { monitor });
     }
     if (typeof ref === "object" && "close" in ref) {
         const app = config.apps[ref.close];

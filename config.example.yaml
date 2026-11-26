@@ -76,9 +76,9 @@ devices:
 
   - name: Computer music
     type: plug                 # shows whether anything is playing (Spotify, browser, …)
-    on: media.play
+    on: { play: spotify, screen: right }
     off: media.pause
-    probe: test "$(playerctl status 2>/dev/null)" = Playing
+    probe: playerctl -a status 2>/dev/null | grep -qx Playing
 
   - name: Next track on computer
     type: momentary

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { matches, openApp } from "../src/actions/apps.ts";
+import { matches, openApp, playApp } from "../src/actions/apps.ts";
 import type { Executor } from "../src/core/executor.ts";
 import { Registry } from "../src/core/dispatcher.ts";
 import { resolveRef } from "../src/resolve.ts";
@@ -48,4 +48,37 @@ test("screen names resolve through the screens map", () => {
         screens: { höger: "HDMI-A-2" },
     });
     assert.equal(a.id, "app.open:spotify@HDMI-A-2");
+});
+
+test("play resumes a running player without touching windows", async () => {
+    const cmds: string[] = [];
+    const exec: Executor = {
+        sh: async c => (cmds.push(c), 0),
+        test: async () => true,
+        capture: async c => (c.includes("playerctl") ? "Paused\n" : "[]"),
+    };
+    await playApp("spotify", spotify, { monitor: "HDMI-A-2" }).run({ exec, log: quiet, cancelPending: () => 0 });
+    assert.deepEqual(cmds, ["playerctl -p 'spotify' play"]);
+});
+
+test("play opens the app when no player exists, waits for it, then plays", async () => {
+    const cmds: string[] = [];
+    let launched = false;
+    let played = false;
+    const exec: Executor = {
+        sh: async c => {
+            cmds.push(c);
+            if (c.includes("setsid")) launched = true;
+            if (c.endsWith(" play")) played = true;
+            return 0;
+        },
+        test: async () => true,
+        capture: async c => {
+            if (c.includes("playerctl")) return !launched ? "" : played ? "Playing\n" : "Stopped\n";
+            return "[]";
+        },
+    };
+    await playApp("spotify", spotify).run({ exec, log: quiet, cancelPending: () => 0 });
+    assert.match(cmds[0], /setsid -f omarchy-launch-spotify/);
+    assert.equal(cmds.at(-1), "playerctl -p 'spotify' play");
 });

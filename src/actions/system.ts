@@ -14,7 +14,7 @@ const safe = (id: string, title: string, command: string): Action => ({
 
 export const mediaActions: Action[] = [
     safe("media.play", "Play", "playerctl play"),
-    safe("media.pause", "Pause", "playerctl pause"),
+    safe("media.pause", "Pause everything", "playerctl -a pause"),
     safe("media.playpause", "Play/pause", "playerctl play-pause"),
     safe("media.next", "Next track", "playerctl next"),
     safe("media.previous", "Previous track", "playerctl previous"),
