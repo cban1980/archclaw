@@ -43,7 +43,9 @@ export async function startConnector(deps: Deps) {
     // Log the OAuth steps (path and status only, never query strings or bodies), so a sign-in
     // that stalls can be followed in the journal.
     app.use((req, res, next) => {
-        if (req.path !== "/mcp") res.on("finish", () => log.info(`connector: ${req.method} ${req.path} → ${res.statusCode}`));
+        res.on("finish", () => {
+            if (req.path !== "/mcp" || res.statusCode >= 400) log.info(`connector: ${req.method} ${req.path} → ${res.statusCode}`);
+        });
         next();
     });
     // Requests arrive through the tunnel daemon, which sets X-Forwarded-For.
