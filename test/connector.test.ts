@@ -66,6 +66,7 @@ async function rpcResult(res: Response) {
 
 test("redirect allowlist only admits Claude", () => {
     assert.ok(isAllowedRedirect(CALLBACK));
+    assert.ok(isAllowedRedirect("https://claude.com/api/mcp/auth_callback"));
     assert.ok(isAllowedRedirect("http://localhost:3118/callback"));
     assert.ok(isAllowedRedirect("http://127.0.0.1:50000/callback"));
     assert.ok(!isAllowedRedirect("https://evil.example/callback"));

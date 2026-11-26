@@ -27,7 +27,7 @@ const LOCKOUT_MS = 15 * 60 * 1000;
  * redirect on any port. Anything else is refused at registration time.
  */
 export function isAllowedRedirect(uri: string): boolean {
-    if (uri === "https://claude.ai/api/mcp/auth_callback") return true;
+    if (uri === "https://claude.ai/api/mcp/auth_callback" || uri === "https://claude.com/api/mcp/auth_callback") return true;
     try {
         const u = new URL(uri);
         return u.protocol === "http:" && (u.hostname === "localhost" || u.hostname === "127.0.0.1") && u.pathname === "/callback";
