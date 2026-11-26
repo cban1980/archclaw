@@ -64,6 +64,7 @@ voice mode.
 | `get_status` | Locked, screens, volume, what's playing, active scenes, open apps, every window and monitor |
 | `start_scene`, `stop_scene` | Your saved setups, by name or alias |
 | `open_app`, `close_app`, `move_window`, `focus_window`, `close_window` | Apps and windows on named screens |
+| `open_terminal` | A terminal running btop, nvim, lazygit, yazi… (installed TUIs or your own `terminalPrograms`), or ssh to a host from `~/.ssh/config`, in a folder, on a screen |
 | `run_action` | Volume, media keys, screens on/off, lock, do not disturb, night light, keep awake, power |
 | `spotify_search`, `spotify_play` | Any track, album, artist or playlist (also your own) on this PC |
 | `omarchy_info`, `omarchy_do` | Omarchy itself: theme, wallpaper, font, text size, bar, transparency, animations, workspaces, fullscreen/float, audio output, mic, brightness, Bluetooth, power profile, reminders, notifications, screen recording, repairs (restart audio/Wi-Fi/Bluetooth/shell) |

@@ -3,9 +3,10 @@ import type { ActionRef, Config } from "./config.ts";
 import type { Action } from "./core/action.ts";
 import type { Registry } from "./core/dispatcher.ts";
 import { OMARCHY_OPS, omarchyCommand } from "./omarchy.ts";
+import { terminalAction } from "./terminal.ts";
 
 /** Turns a config action reference into a runnable Action. Throws on unknown ids or apps. */
-export function resolveRef(ref: ActionRef, registry: Registry, config: Pick<Config, "apps" | "screens">): Action {
+export function resolveRef(ref: ActionRef, registry: Registry, config: Pick<Config, "apps" | "screens"> & Partial<Pick<Config, "terminalPrograms">>): Action {
     if (Array.isArray(ref)) {
         const steps = ref.map(r => resolveRef(r, registry, config));
         if (steps.some(s => s.risk !== "safe")) throw new Error("lists can only contain safe actions");
@@ -37,6 +38,17 @@ export function resolveRef(ref: ActionRef, registry: Registry, config: Pick<Conf
         return playApp(ref.play, app, { monitor });
     }
     if (typeof ref === "object" && "omarchy" in ref) return omarchyAction(ref.omarchy, ref.value);
+    if (typeof ref === "object" && "terminal" in ref) {
+        const monitor = ref.screen ? (config.screens[ref.screen] ?? ref.screen) : undefined;
+        const req = { program: ref.terminal === "shell" ? undefined : ref.terminal, ssh: ref.ssh, dir: ref.dir, monitor };
+        return {
+            id: `terminal:${ref.terminal}${ref.ssh ? `@${ref.ssh}` : ""}`,
+            title: `Terminal ${ref.terminal}`,
+            risk: "safe",
+            // Checked when it runs: what's installed and in ~/.ssh/config can change.
+            run: async ctx => (await terminalAction(req, ctx.exec, config.terminalPrograms ?? {})).run(ctx),
+        };
+    }
     if (typeof ref === "object" && "close" in ref) {
         const app = config.apps[ref.close];
         if (!app) throw new Error(`unknown app "${ref.close}"`);

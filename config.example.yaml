@@ -28,9 +28,17 @@ apps:
     launch: uwsm-app -- xdg-terminal-exec
     match: ghostty
 
+# Your own terminal programs (name → command line). Claude can open these by name with
+# open_terminal, besides installed TUIs like btop, nvim, lazygit and yazi, and ssh to hosts
+# in ~/.ssh/config. Claude can't add or change these.
+terminalPrograms:
+  logs: journalctl --user -f
+
 # Scenes: named setups Claude starts and stops when you say their name or an alias.
 # Steps: a built-in action id (`archclaw list`), { open: app, screen: name, new: true },
-# { close: app }, { play: app, screen: name }, or { run: "shell command" } (hand edits only).
+# { close: app }, { play: app, screen: name }, { terminal: btop, dir: ~/Work, screen: left },
+# { terminal: shell, ssh: myserver }, { omarchy: theme.set, value: Tokyo Night },
+# or { run: "shell command" } (hand edits only).
 # Without `stop`, nothing happens on stop. Power actions can't be in scenes.
 scenes:
   - name: focus

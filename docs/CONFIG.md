@@ -15,6 +15,7 @@ validates.
 | `notes` | `""` | Free text Claude reads in every conversation: your language, the words you use, habits. Claude can update it (`set_notes`). |
 | `screens` | `{}` | Friendly names → Hyprland monitor names (`hyprctl monitors`), e.g. `left: HDMI-A-1`. |
 | `apps` | `{}` | See [Apps](#apps). |
+| `terminalPrograms` | `{}` | Your own terminal programs, name → command line, e.g. `logs: journalctl --user -f`. Claude opens them with `open_terminal`, next to installed TUIs (btop, htop, nvim, hx, lazygit, lazydocker, yazi, ranger, mc, ncdu, k9s, tmux, herdr, impala, wiremix, bluetui, claude, opencode…) and ssh to hosts in `~/.ssh/config`. Claude can't add or change these. |
 | `scenes` | `[]` | See [Scenes](#scenes). |
 | `connector` | | `port` (8765), `publicUrl` (your tunnel's https address), `listen` and `allowFrom` (see [The connector](#the-connector)). |
 | `spotify` | | See [Spotify](#spotify). |
@@ -79,6 +80,7 @@ Steps:
 | `{ open: terminal, new: true }` | always a new window |
 | `{ close: app }` | closes every window of the app |
 | `{ play: spotify, screen: right }` | resumes music, or opens the player there and starts playback |
+| `{ terminal: lazygit, dir: ~/Work/app, screen: left }` | a terminal running a program in a folder (`terminal: shell` for a plain shell; `ssh: host` for ssh) |
 | `{ omarchy: theme.set, value: Tokyo Night }` | an Omarchy operation (the list is in `src/omarchy.ts`; Claude sees it in `omarchy_do`) |
 | `{ run: "shell command" }` | anything; **hand edits only** (Claude can't add these) |
 

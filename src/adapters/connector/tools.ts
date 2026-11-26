@@ -11,6 +11,7 @@ import { appFromDesktopId, findApps, webAppLaunch } from "../../desktop-apps.ts"
 import { omarchyAction, resolveRef } from "../../resolve.ts";
 import { INFO_TOPICS, OMARCHY_OPS, omarchyCommand, omarchyInfo, screenshot } from "../../omarchy.ts";
 import { monitors } from "../../actions/apps.ts";
+import { availablePrograms, sshHosts, terminalAction } from "../../terminal.ts";
 import type { SpotifyClient } from "../../spotify/client.ts";
 import { playUriHere } from "../../spotify/actions.ts";
 import { computerStatus } from "../../status.ts";
@@ -62,6 +63,14 @@ const step = z.union([
     z.object({ play: z.string().describe("App key of a music player, e.g. spotify"), screen: z.string().optional() }).strict(),
     z.object({ action: z.string().describe("Built-in action id from list_capabilities, e.g. display.off, volume.mute, power.lock") }).strict(),
     z.object({ omarchy: z.string().describe("Operation from omarchy_do, e.g. theme.set, bar, animations"), value: z.string().optional() }).strict(),
+    z
+        .object({
+            terminal: z.string().describe("Program from list_capabilities terminal.programs, or 'shell'"),
+            ssh: z.string().optional().describe("Host from list_capabilities terminal.sshHosts (with terminal: 'shell')"),
+            dir: z.string().optional().describe("Working directory inside home, e.g. ~/Work/project"),
+            screen: z.string().optional(),
+        })
+        .strict(),
 ]);
 type Step = z.infer<typeof step>;
 
@@ -138,6 +147,7 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
                 scenes: config.scenes,
                 screens: config.screens,
                 notes: config.notes,
+                terminal: { programs: await availablePrograms(exec, config.terminalPrograms), sshHosts: sshHosts() },
                 spotify: deps.spotify?.loggedIn ? "logged in" : "not logged in (archclaw spotify login on the computer)",
             }),
     );
@@ -342,6 +352,31 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
         );
     }
 
+    server.registerTool(
+        "open_terminal",
+        {
+            title: "Open a terminal",
+            description:
+                "Opens a new terminal window, optionally running a program (installed TUIs like btop, nvim, lazygit, yazi, " +
+                "or the owner's own from list_capabilities terminal.programs), or ssh to a host from terminal.sshHosts, " +
+                "in a directory inside home, on a screen. Programs take no arguments; use `directory` for where they start.",
+            inputSchema: {
+                program: z.string().optional(),
+                ssh_host: z.string().optional(),
+                directory: z.string().optional().describe("e.g. ~/Work/archclaw"),
+                screen: (screenNames.length ? z.enum(screenNames as [string, ...string[]]) : z.string()).optional(),
+            },
+            annotations: { destructiveHint: false, openWorldHint: false },
+        },
+        async ({ program, ssh_host, directory, screen }) => {
+            try {
+                return run(await terminalAction({ program, ssh: ssh_host, dir: directory, monitor: monitorOf(screen) }, exec, config.terminalPrograms));
+            } catch (err) {
+                return fail((err as Error).message);
+            }
+        },
+    );
+
     // ── Omarchy ──────────────────────────────────────────────────────────────
 
     const ops = Object.keys(OMARCHY_OPS) as [string, ...string[]];
@@ -465,7 +500,8 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
             title: "Save a scene",
             description:
                 "Creates or replaces a named setup the user can start and stop by name. Steps run in order: " +
-                "{open: app, screen?}, {close: app}, {play: app, screen?}, {action: id}, {omarchy: operation, value?} " +
+                "{open: app, screen?}, {close: app}, {play: app, screen?}, {action: id}, {omarchy: operation, value?}, " +
+                "{terminal: program|'shell', ssh?, dir?, screen?} " +
                 "(any omarchy_do operation, e.g. theme.set). Without stop steps, stopping " +
                 "closes every app the scene opens. Put the words the user says for it in aliases (any language). " +
                 "Power actions can't be in scenes.",

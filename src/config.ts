@@ -15,6 +15,15 @@ const singleRef = z.union([
     z.object({ close: z.string().min(1) }).strict(),
     /** Play music in an app (MPRIS): resumes it if running, otherwise opens it (on `screen`) and starts playback. */
     z.object({ play: z.string().min(1), screen: z.string().min(1).optional() }).strict(),
+    /** A terminal running a program (built-in TUI or `terminalPrograms`), or ssh to a host from ~/.ssh/config. */
+    z
+        .object({
+            terminal: z.string().min(1).describe("program, or 'shell'"),
+            ssh: z.string().min(1).optional(),
+            dir: z.string().min(1).optional(),
+            screen: z.string().min(1).optional(),
+        })
+        .strict(),
     /** An Omarchy operation (see omarchy.ts), e.g. { omarchy: theme.set, value: Tokyo Night }. */
     z.object({ omarchy: z.string().min(1), value: z.string().optional() }).strict(),
 ]);
@@ -72,6 +81,11 @@ const schema = z
         /** Friendly screen names → Hyprland monitor names (`hyprctl monitors`). */
         screens: z.record(z.string(), z.string()).default({}),
         apps: z.record(z.string(), app).default({}),
+        /**
+         * Your own terminal programs: name → command line (run with `-e` in a new terminal).
+         * Claude can start these by name but can't add or change them.
+         */
+        terminalPrograms: z.record(z.string(), z.string().min(1)).default({}),
         scenes: z.array(scene).default([]),
         safety: z
             .object({
