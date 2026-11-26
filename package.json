@@ -1,0 +1,46 @@
+{
+  "name": "archnest",
+  "version": "0.1.0",
+  "description": "Control an Arch/Omarchy PC with Google Home / Nest over Matter",
+  "main": "src/cli.ts",
+  "scripts": {
+    "start": "node src/cli.ts serve",
+    "check": "node src/cli.ts check",
+    "typecheck": "tsc",
+    "test": "node --test test/*.test.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cban1980/archnest.git"
+  },
+  "keywords": [
+    "matter",
+    "google-home",
+    "nest",
+    "omarchy",
+    "hyprland",
+    "arch-linux"
+  ],
+  "license": "Unlicense",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/cban1980/archnest/issues"
+  },
+  "homepage": "https://github.com/cban1980/archnest#readme",
+  "dependencies": {
+    "@matter/main": "^0.18.1",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.7"
+  },
+  "bin": {
+    "archnest": "src/cli.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.11",
+    "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "private": true
+}

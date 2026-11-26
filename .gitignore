@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Local config and Matter pairing state. The real ones live in ~/.config/archnest and
+# ~/.local/state/archnest; these catch copies made while developing. They hold the
+# pairing passcode and fabric keys, so they must never be committed.
+config.yaml
+*.local.yaml
+.matter/
+state/
+
+# Logs and debugging captures
+*.log
+npm-debug.log*
+*.pcap
+*.pcapng
+
+# Test and coverage output
+coverage/
+.nyc_output/
+*.tsbuildinfo
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# Claude Code local settings
+.claude/settings.local.json
