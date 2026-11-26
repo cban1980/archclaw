@@ -127,7 +127,7 @@ test("full OAuth + MCP flow as Claude runs it", async () => {
     for (const n of ["get_status", "list_capabilities", "run_action", "open_app", "close_app", "start_scene", "stop_scene", "move_window", "add_app", "save_scene", "undo_config_change"]) {
         assert.ok(names.includes(n), n);
     }
-    assert.ok(!names.includes("spotify_play"), "Spotify tools only appear when logged in");
+    assert.ok(names.includes("spotify_play") && names.includes("hue_set"), "tools are always listed, so cached lists stay valid");
     const instructions = (await rpcResult(init)).instructions as string;
     assert.match(instructions, /focus \(also: focus mode, work\)/);
     const call = await rpcResult(await mcp(tokens.access_token, { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "run_action", arguments: { action: "power.lock" } } }));

@@ -163,6 +163,12 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
                 notes: config.notes,
                 terminal: { programs: await availablePrograms(exec, config.terminalPrograms), sshHosts: sshHosts() },
                 spotify: deps.spotify?.loggedIn ? "logged in" : "not logged in (archclaw spotify login on the computer)",
+                hue: deps.hue?.paired
+                    ? await deps.hue.state().then(st => {
+                          const sum = summarize(st);
+                          return { rooms: sum.rooms.map(r => r.name), zones: sum.zones.map(z => z.name), note: "use hue_status / hue_set / hue_scene" };
+                      }, err => `paired, but unreachable: ${(err as Error).message}`)
+                    : "not paired (archclaw hue pair on the computer)",
             }),
     );
 
@@ -186,7 +192,7 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
         async ({ action, percent }) => run(registry.get(action)!, percent === undefined ? undefined : { percent }),
     );
 
-    if (config.scenes.length) {
+    {
         const sceneTool = (start: boolean) => async ({ scene }: { scene: string }) => {
             const s = findScene(store.config, scene);
             if (!s) return fail(`no scene "${scene}"; scenes: ${store.config.scenes.map(x => x.name).join(", ")}`);
@@ -216,30 +222,47 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
         );
     }
 
-    if (appNames.length) {
+    {
+        const appArg = z.string().describe(`App key: ${appNames.join(", ") || "none yet (add_app)"}`);
+        const checkApp = (app: string) => {
+            if (!config.apps[app]) throw new Error(`no app "${app}"; apps: ${appNames.join(", ") || "none"}`);
+            return config.apps[app]!;
+        };
         server.registerTool(
             "open_app",
             {
                 title: "Open an app",
                 description: "Opens a configured app, or focuses it if it's already open, optionally on a named screen. new_window always opens another window.",
                 inputSchema: {
-                    app: z.enum(appNames as [string, ...string[]]),
-                    screen: (screenNames.length ? z.enum(screenNames as [string, ...string[]]) : z.string()).optional(),
+                    app: appArg,
+                    screen: z.string().optional().describe(`Screen: ${screenNames.join(", ") || "a monitor name"}`),
                     new_window: z.boolean().optional(),
                 },
                 annotations: { destructiveHint: false, openWorldHint: false },
             },
-            async ({ app, screen, new_window }) => run(openApp(app, config.apps[app]!, { monitor: monitorOf(screen), alwaysNew: new_window })),
+            async ({ app, screen, new_window }) => {
+                try {
+                    return run(openApp(app, checkApp(app), { monitor: monitorOf(screen), alwaysNew: new_window }));
+                } catch (err) {
+                    return fail((err as Error).message);
+                }
+            },
         );
         server.registerTool(
             "close_app",
             {
                 title: "Close an app",
                 description: "Closes every window of a configured app. Unsaved work may be lost, so only close what the user asked for.",
-                inputSchema: { app: z.enum(appNames as [string, ...string[]]) },
+                inputSchema: { app: appArg },
                 annotations: { destructiveHint: true, openWorldHint: false },
             },
-            async ({ app }) => run(closeApp(app, config.apps[app]!)),
+            async ({ app }) => {
+                try {
+                    return run(closeApp(app, checkApp(app)));
+                } catch (err) {
+                    return fail((err as Error).message);
+                }
+            },
         );
     }
 
@@ -250,7 +273,7 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
             description: "Moves a window to a screen and focuses it. `window` is an app key or a window address from get_status.",
             inputSchema: {
                 window: z.string(),
-                screen: (screenNames.length ? z.enum(screenNames as [string, ...string[]]) : z.string()).describe("Screen name or monitor"),
+                screen: z.string().describe("Screen name or monitor"),
             },
             annotations: { destructiveHint: false, openWorldHint: false },
         },
@@ -303,8 +326,11 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
 
     // ── Spotify ──────────────────────────────────────────────────────────────
 
-    const spotify = deps.spotify;
-    if (spotify?.loggedIn) {
+    const spotifyOrError = () => {
+        if (!deps.spotify?.loggedIn) throw new Error("Spotify isn't connected; the owner runs `archclaw spotify login` on the computer");
+        return deps.spotify;
+    };
+    {
         const kinds = ["track", "album", "playlist", "artist"] as const;
         server.registerTool(
             "spotify_search",
@@ -320,6 +346,7 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
             },
             async ({ query, kind, mine }) => {
                 try {
+                    const spotify = spotifyOrError();
                     if (mine) {
                         const words = query.toLowerCase();
                         return json((await spotify.myPlaylists()).filter(p => p.name.toLowerCase().includes(words)));
@@ -347,6 +374,7 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
             },
             async ({ uri, query, kind, mine }) => {
                 try {
+                    const spotify = spotifyOrError();
                     let target = uri ? { uri, name: uri } : undefined;
                     if (!target && query && mine) {
                         const q = query.toLowerCase();
@@ -378,7 +406,7 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
                 program: z.string().optional(),
                 ssh_host: z.string().optional(),
                 directory: z.string().optional().describe("e.g. ~/Work/archclaw"),
-                screen: (screenNames.length ? z.enum(screenNames as [string, ...string[]]) : z.string()).optional(),
+                screen: z.string().optional(),
             },
             annotations: { destructiveHint: false, openWorldHint: false },
         },
@@ -393,18 +421,22 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
 
     // ── Philips Hue ──────────────────────────────────────────────────────────
 
-    const hue = deps.hue;
-    if (hue?.paired) {
+    // Registered even when unpaired: Claude caches the tool list, so it must not change between restarts.
+    const hueOrError = () => {
+        if (!deps.hue?.paired) throw new Error("Philips Hue isn't paired yet; the owner runs `archclaw hue pair` on the computer");
+        return deps.hue;
+    };
+    {
         server.registerTool(
             "hue_status",
             {
                 title: "Hue lights",
-                description: "Philips Hue rooms and zones with their lights (on, brightness) and scenes.",
+                description: "Philips Hue lights in the home (ceiling lights, lamps, rooms like the living room or hall): rooms and zones with their lights (on, brightness) and scenes.",
                 annotations: { readOnlyHint: true, openWorldHint: false },
             },
             async () => {
                 try {
-                    return json(summarize(await hue.state()));
+                    return json(summarize(await hueOrError().state()));
                 } catch (err) {
                     return fail((err as Error).message);
                 }
@@ -415,7 +447,7 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
             {
                 title: "Change Hue lights",
                 description:
-                    "Changes a Hue room, zone, light, or 'all' (names match loosely, any language): on/off, brightness 0-100 " +
+                    "Controls the home's Philips Hue lights (lampor): a room, zone, light, or 'all' (names match loosely, any language): on/off, brightness 0-100 " +
                     "(0 = off), color (red, blue, warm white… or #rrggbb), temperature (2000-6500 K or warm/neutral/cool/daylight), " +
                     "fade in seconds.",
                 inputSchema: {
@@ -430,7 +462,7 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
             },
             async ({ target, fade_seconds, ...change }) => {
                 try {
-                    return text(await applyChange(hue, target, { ...change, fadeSeconds: fade_seconds }));
+                    return text(await applyChange(hueOrError(), target, { ...change, fadeSeconds: fade_seconds }));
                 } catch (err) {
                     return fail((err as Error).message);
                 }
@@ -446,7 +478,7 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
             },
             async ({ scene, room }) => {
                 try {
-                    return text(await recallScene(hue, scene, room));
+                    return text(await recallScene(hueOrError(), scene, room));
                 } catch (err) {
                     return fail((err as Error).message);
                 }
