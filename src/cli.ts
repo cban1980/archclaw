@@ -236,7 +236,7 @@ async function main() {
             } else if (sub === "status") {
                 const c = loadConfig().connector;
                 console.log(`url:       ${c.publicUrl ? `${c.publicUrl.replace(/\/$/, "")}/mcp` : "(not set - archclaw connector url https://…)"}`);
-                console.log(`local:     http://127.0.0.1:${c.port}`);
+                console.log(`local:     http://${c.listen}:${c.port} (allowed from ${c.allowFrom.join(", ")})`);
                 console.log(`password:  ${store.hasPassword ? "set" : "not set - run `archclaw connector password`"}`);
                 console.log(`clients:   ${store.connectedClients} signed in`);
             } else if (sub === "url") {
