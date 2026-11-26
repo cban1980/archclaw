@@ -1,25 +1,30 @@
 {
   "name": "archnest",
-  "version": "0.1.0",
-  "description": "Control an Arch/Omarchy PC with Google Home / Nest over Matter",
+  "version": "1.0.0",
+  "description": "Control an Arch/Omarchy PC by voice with Google Home / Nest: a Matter bridge with locks, lights, dimmers, apps on screens, Spotify handoff and safe power actions",
   "main": "src/cli.ts",
   "scripts": {
     "start": "node src/cli.ts serve",
     "check": "node src/cli.ts check",
     "typecheck": "tsc",
-    "test": "node --test test/*.test.ts"
+    "test": "node --test test/*.test.ts",
+    "routines": "node src/cli.ts routines"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cban1980/archnest.git"
   },
   "keywords": [
-    "matter",
+    "arch-linux",
     "google-home",
+    "home-automation",
+    "hyprland",
+    "matter",
     "nest",
     "omarchy",
-    "hyprland",
-    "arch-linux"
+    "spotify",
+    "systemd",
+    "voice-control"
   ],
   "license": "Unlicense",
   "type": "module",
