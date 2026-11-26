@@ -42,7 +42,7 @@ connector:
 # Music devices then take over playback from the Nest ("play X on Spotify" → this PC).
 spotify:
   screen: right                # where Spotify opens if it isn't running
-  # device: tor                # this PC's name in Spotify Connect (default: hostname)
+  # device: my-pc              # this PC's name in Spotify Connect (default: hostname)
   # handoffFrom: [Living Room speaker]   # default: any speaker/TV, never phones or computers
 
 safety:
