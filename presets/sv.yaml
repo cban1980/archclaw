@@ -34,6 +34,13 @@ connector:
   port: 8765                 # local only (127.0.0.1); the tunnel forwards to it
   # publicUrl: https://your-pc.your-tailnet.ts.net
 
+# Spotify Connect (optional, needs Premium): `archnest spotify login` once.
+# Music devices then take over playback from the Nest ("play X on Spotify" → this PC).
+spotify:
+  screen: right                # where Spotify opens if it isn't running
+  # device: tor                # this PC's name in Spotify Connect (default: hostname)
+  # handoffFrom: [Living Room speaker]   # default: any speaker/TV, never phones or computers
+
 safety:
   countdownSeconds: 30     # risky actions show a notification with a Cancel button first
   bootGraceSeconds: 120    # ignore risky commands right after boot
@@ -75,9 +82,15 @@ devices:
 
   - name: Datormusiken
     type: plug                 # shows whether anything is playing (Spotify, browser, …)
-    on: { play: spotify, screen: right }
+    on: spotify.here
     off: media.pause
     probe: playerctl -a status 2>/dev/null | grep -qx Playing
+
+  - name: Musik till datorn
+    type: plug                 # flyttar Spotify från Nest till datorn ("spela X på Spotify")
+    on: spotify.handoff.on
+    off: spotify.handoff.off
+    probe: test -e "${ARCHNEST_STORAGE:-${XDG_STATE_HOME:-$HOME/.local/state}/archnest}/spotify-handoff"
 
   - name: Nästa låt på datorn
     type: momentary

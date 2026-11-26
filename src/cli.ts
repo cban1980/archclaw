@@ -2,13 +2,13 @@
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { parseDocument } from "yaml";
 import { fileURLToPath } from "node:url";
 import { displayActions } from "./actions/display.ts";
 import { powerActions } from "./actions/power.ts";
 import { desktopActions, mediaActions, volumeActions } from "./actions/system.ts";
-import { loadConfig, paths } from "./config.ts";
+import { type Config, loadConfig, paths } from "./config.ts";
 import { Dispatcher, Registry } from "./core/dispatcher.ts";
 import { createExecutor } from "./core/executor.ts";
 import { createLogger } from "./core/log.ts";
@@ -17,6 +17,8 @@ import { Safety, type SafetyConfig } from "./core/safety.ts";
 import { initConfig } from "./init.ts";
 import { pairedFabrics, pairingCodes } from "./pairing.ts";
 import { resolveRef } from "./resolve.ts";
+import { SpotifyClient, SpotifyTokenStore } from "./spotify/client.ts";
+import { handoffFlag, spotifyActions, spotifyEnabled, startHandoff } from "./spotify/actions.ts";
 
 const usage = `usage: archnest <command>
 
@@ -29,6 +31,9 @@ const usage = `usage: archnest <command>
   list                           list built-in actions
   run <action> [--dry-run]       run one action locally, with the same safety rules
   trigger <device> on|off        act as if Google Home switched a device
+  spotify login [--client-id ID] log in to Spotify (for moving music from the Nest to this PC)
+  spotify status                 login, Connect devices and what's playing
+  spotify logout                 forget the Spotify login
   connector password             set the owner password for the Claude connector (signs everyone out)
   connector status               connector settings and connected clients
   connector revoke               sign every Claude client out
@@ -47,18 +52,34 @@ const option = (name: string) => {
     return i >= 0 ? args[i + 1] : undefined;
 };
 const dryRun = flag("--dry-run") || process.env.ARCHNEST_DRY_RUN === "1";
-const VALUE_OPTIONS = new Set(["--name", "--preset", "--percent"]);
+const VALUE_OPTIONS = new Set(["--name", "--preset", "--percent", "--client-id"]);
 const positional = args.filter((a, i) => !a.startsWith("--") && !(i > 0 && VALUE_OPTIONS.has(args[i - 1])));
 const [command = "serve", ...rest] = positional;
 
 const log = createLogger("archnest");
-const registry = new Registry().add(
-    ...powerActions,
-    ...displayActions,
-    ...mediaActions,
-    ...volumeActions,
-    ...desktopActions,
-);
+const spotifyStore = new SpotifyTokenStore(join(paths.state, "spotify.json"));
+const spotifyClient = new SpotifyClient(spotifyStore);
+
+/** Built-in actions, plus the ones that depend on the config (Spotify). */
+function registryFor(config?: Config) {
+    const registry = new Registry().add(
+        ...powerActions,
+        ...displayActions,
+        ...mediaActions,
+        ...volumeActions,
+        ...desktopActions,
+    );
+    if (config && spotifyEnabled(config)) registry.add(...spotifyActions({ config, client: spotifyClient, statePath: paths.state }));
+    return registry;
+}
+
+function tryConfig(): Config | undefined {
+    try {
+        return loadConfig();
+    } catch {
+        return undefined;
+    }
+}
 
 const LOCAL_SAFETY: SafetyConfig = { countdownSeconds: 30, bootGraceSeconds: 0, repeatWindowSeconds: 0 };
 
@@ -97,8 +118,12 @@ async function main() {
     switch (command) {
         case "serve": {
             const config = loadConfig();
+            const registry = registryFor(config);
             const { dispatcher, exec, notifier } = core(config.safety);
             if (dryRun) log.warn("dry-run: commands will be logged, not run");
+            if (spotifyEnabled(config)) {
+                startHandoff({ config, client: spotifyClient, statePath: paths.state, log, ctx: { exec, log, cancelPending: () => 0 } });
+            }
             const { startMatter } = await import("./adapters/matter.ts");
             await startMatter({ config, registry, dispatcher, exec, log }, paths.state);
             if (config.connector.enabled) {
@@ -167,7 +192,7 @@ async function main() {
         case "run": {
             const id = rest[0];
             if (!id) throw new Error("run needs an action id; see `archnest list`");
-            const action = registry.get(id);
+            const action = registryFor(tryConfig()).get(id);
             if (!action) throw new Error(`unknown action ${id}; see \`archnest list\``);
             const percent = option("--percent");
             const { dispatcher } = core(LOCAL_SAFETY);
@@ -185,7 +210,7 @@ async function main() {
             const ref = state === "on" ? dev.on : dev.off;
             if (!ref) throw new Error(`"${dev.name}" has no ${state} action`);
             const { dispatcher } = core({ ...config.safety, bootGraceSeconds: 0, repeatWindowSeconds: 0 });
-            const outcome = await dispatcher.dispatch(resolveRef(ref, registry, config), "cli");
+            const outcome = await dispatcher.dispatch(resolveRef(ref, registryFor(config), config), "cli");
             log.info(`${dev.name} ${state}: ${outcome}`);
             process.exitCode = outcome === "ran" ? 0 : 1;
             return;
@@ -223,11 +248,56 @@ async function main() {
             } else throw new Error("usage: archnest connector password|status|revoke|enable <url>|disable");
             return;
         }
+        case "spotify": {
+            const sub = rest[0] ?? "status";
+            if (sub === "login") {
+                const config = loadConfig();
+                const clientId = option("--client-id") ?? config.spotify.clientId;
+                if (!clientId) {
+                    throw new Error(
+                        "no Spotify client ID. Create an app at https://developer.spotify.com/dashboard (Web API, redirect URI " +
+                            "http://127.0.0.1:8898/callback), then run: archnest spotify login --client-id <ID>",
+                    );
+                }
+                if (clientId !== config.spotify.clientId) {
+                    const doc = parseDocument(readFileSync(paths.config, "utf8"));
+                    doc.setIn(["spotify", "clientId"], clientId);
+                    writeFileSync(paths.config, doc.toString());
+                }
+                const { spotifyLogin } = await import("./spotify/login.ts");
+                await spotifyLogin(clientId, spotifyStore, url => {
+                    try {
+                        execFileSync("xdg-open", [url], { stdio: "ignore" });
+                    } catch {}
+                });
+                const pc = (await spotifyClient.devices()).map(d => `${d.name} (${d.type})`).join(", ");
+                console.log(`Logged in. Spotify Connect devices right now: ${pc || "none (open Spotify somewhere)"}`);
+                console.log("Restart the service to pick it up: systemctl --user restart archnest");
+            } else if (sub === "logout") {
+                spotifyStore.clear();
+                console.log("Forgot the Spotify login. Also remove archnest at https://www.spotify.com/account/apps/ if you like.");
+            } else if (sub === "status") {
+                const config = loadConfig();
+                console.log(`client id: ${config.spotify.clientId ?? "(not set)"}`);
+                console.log(`logged in: ${spotifyClient.loggedIn ? "yes" : "no - run `archnest spotify login`"}`);
+                console.log(`handoff:   ${existsSync(handoffFlag(paths.state)) ? "on" : "off"}`);
+                if (spotifyClient.loggedIn) {
+                    const { isThisPc } = await import("./spotify/actions.ts");
+                    for (const d of await spotifyClient.devices()) {
+                        console.log(`device:    ${d.name} (${d.type})${isThisPc(d, config) ? "  <- this PC" : ""}${d.is_active ? "  [active]" : ""}`);
+                    }
+                    const pb = await spotifyClient.playback();
+                    console.log(`playing:   ${pb?.is_playing ? `${pb.item?.name ?? "?"} on ${pb.device?.name}` : "nothing"}`);
+                }
+            } else throw new Error("usage: archnest spotify login|status|logout");
+            return;
+        }
         case "list":
-            for (const a of registry.list()) console.log(`${a.id.padEnd(18)} ${a.risk.padEnd(8)} ${a.title}`);
+            for (const a of registryFor(tryConfig()).list()) console.log(`${a.id.padEnd(18)} ${a.risk.padEnd(8)} ${a.title}`);
             return;
         case "check": {
             const config = loadConfig();
+            const registry = registryFor(config);
             for (const d of config.devices) {
                 if (d.on) resolveRef(d.on, registry, config);
                 if (d.off) resolveRef(d.off, registry, config);

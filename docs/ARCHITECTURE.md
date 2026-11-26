@@ -16,7 +16,7 @@ understands**, and covering the rest with routines:
 |---|---|---|---|
 | Matter devices with fitting types (lock, light, dimmer) | Typed commands | "lock the computer", "turn off the screens", "set volume to 30 percent" | ✅ |
 | Routines (script editor / app) | Fixed phrases → devices | Any phrase, but fixed | ✅ (`docs/routines/`) |
-| Spotify handoff | Google searches Spotify, we move playback to the PC | Free-form music requests | Roadmap |
+| Spotify handoff | Google searches Spotify, we move playback to the PC | Free-form music requests | ✅ |
 | Cloud-to-cloud "TV" device | AppSelector, TransportControl, Volume | "open Spotify on the computer" with no routine | Roadmap (needs public HTTPS + OAuth) |
 | Claude connector (remote MCP, Claude apps) | Claude's tool calls | Fully free-form, via the Claude app (side button) | ✅ |
 | Own voice front end (mic + STT + LLM) | Raw text → actions | Fully free-form, hands-free on the PC | Roadmap |
@@ -68,6 +68,7 @@ src/
     display.ts           DPMS on/off
     system.ts            media (playerctl), volume (pactl), dnd/nightlight/stay-awake (Omarchy)
     apps.ts              open/focus/move-to-monitor/close via hyprctl
+  spotify/               Spotify Connect: PKCE login, player API client, spotify.here + handoff loop
   adapters/matter.ts     bridge + per-type endpoint factories + probe loop
   adapters/connector/    Claude connector: remote MCP over Streamable HTTP (stateless)
     server.ts            express app: OAuth router, consent route, bearer-protected /mcp
@@ -130,7 +131,7 @@ bootstrap.sh                  gum installer
 | Open apps on a screen | launch → wait for the new window → `hl.dsp.window.move({monitor})` | ✅ focuses if already open |
 | Scenes | list of safe actions | ✅ power actions not allowed in lists |
 | Shutdown/reboot/sleep | momentary + repeat + countdown | ✅ |
-| Spotify "play X on the PC" | Spotify Web API: follow playback started on the Nest, transfer to the PC | Phase 3 |
+| Spotify "play X on the PC" | Spotify Web API (PKCE, dev mode, Premium): playback started on the Nest is transferred to the PC | ✅ handoff mode + `spotify.here` |
 | Theme switching | `omarchy-theme-set <name>` via a ModeSelect device | Later: Google's Matter ModeSelect support is unverified |
 | Wake the PC | Wake-on-LAN from an always-on device | Out of scope (archnest is off when the PC is) |
 | Announce on the PC ("tell the computer…") | No inbound free text from Google | Not possible via Nest |
@@ -141,9 +142,9 @@ bootstrap.sh                  gum installer
 1. ✅ **Core:** registry, dispatcher, safety, executor, notifier, YAML config, CLI, tests.
 2. ✅ **Matter devices:** plug, light, momentary, lock, dimmer; probes; en/sv presets; apps on
    screens; scenes; systemd user service; gum bootstrap.
-3. **Spotify handoff:** `archnest spotify login` (OAuth PKCE, token in `~/.local/state`), a
-   "Spotify on computer" plug that, while on, moves any playback started on the Nest to the PC's
-   Spotify Connect device. Needs Premium.
+3. ✅ **Spotify handoff:** `archnest spotify login` (OAuth PKCE, token in `~/.local/state`), a
+   "Music to computer" plug that, while on, moves playback started on the Nest to the PC's
+   Spotify Connect device, and `spotify.here` on the music device. Needs Premium.
 4. **Faster recovery after boot:** start earlier (before the graphical session, with actions
    deferred until it's up), so the hub never sees the bridge as gone.
 5. ✅ **Claude connector:** the Claude apps call archnest as a remote MCP server (Tailscale

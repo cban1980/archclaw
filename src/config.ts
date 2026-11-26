@@ -104,6 +104,22 @@ const schema = z
             })
             .strict()
             .default({ enabled: false, port: 8765 }),
+        /** Spotify Connect: move playback from the Nest to this PC (`archnest spotify login`). */
+        spotify: z
+            .object({
+                /** Client ID of your app at developer.spotify.com (no secret needed). */
+                clientId: z.string().min(1).optional(),
+                /** Key in `apps` to start when this PC isn't a Spotify Connect device yet. */
+                app: z.string().min(1).default("spotify"),
+                /** Screen to open Spotify on. */
+                screen: z.string().min(1).optional(),
+                /** This PC's name in Spotify Connect; defaults to the hostname. */
+                device: z.string().min(1).optional(),
+                /** Device names handoff mode moves from; default: any speaker/TV (not phones or computers). */
+                handoffFrom: z.array(z.string().min(1)).optional(),
+            })
+            .strict()
+            .default({ app: "spotify" }),
         devices: z.array(device).min(1),
     })
     .strict();

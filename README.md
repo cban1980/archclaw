@@ -57,7 +57,8 @@ Default names (English preset). The Swedish preset has the same devices, e.g. *D
 | **Computer** (lock) | "lock the computer" | `omarchy-system-lock`. Shows the real lock state. **Remote unlock is always refused.** |
 | **Screens** (light) | "turn off/on the screens" | DPMS off/on (Hyprland 0.56 syntax with fallback) |
 | **Computer volume** (dimmer) | "set computer volume to 30 percent" | `pactl` on Omarchy's output sink; on/off = unmute/mute |
-| **Computer music** (plug) | "turn on/off computer music" | on: plays Spotify, starting it on the right-hand screen if needed; off: pauses everything. Shows whether something is playing |
+| **Computer music** (plug) | "turn on/off computer music" | on: plays Spotify here: takes over playback from the Nest if it's playing there, otherwise starts/resumes Spotify on the right-hand screen; off: pauses everything. Shows whether something is playing |
+| **Music to computer** (plug) | "turn on music to computer" | handoff mode: Spotify playback started on the Nest moves to this PC (see below) |
 | **Next / Previous track on computer** | via routines | `playerctl next/previous` |
 | **Do not disturb**, **Night light**, **Keep computer awake** (plugs) | "turn on do not disturb" | Omarchy's toggles, with live state |
 | **Spotify app** (plug) | "open spotify on the computer" (routine) | opens Spotify on the right-hand screen, or closes it |
@@ -69,6 +70,25 @@ Default names (English preset). The Swedish preset has the same devices, e.g. *D
 Everything is configured in `~/.config/archnest/config.yaml`: names, screens, apps, scenes
 and your own shell commands. Run `archnest check` after editing, then
 `systemctl --user restart archnest`.
+
+### Spotify: "play X" from the Nest, on the PC
+
+Google never passes the song or artist to archnest, but it can play anything on Spotify on the
+Nest. archnest then moves that playback to the PC with Spotify Connect:
+
+> "Hey Google, spela The Weeknd på Spotify" → (with *Music to computer* on) it plays on the PC
+> within a few seconds. Or say it, then "tänd datormusiken".
+
+Needs Spotify Premium (Spotify's rule for API apps). Once:
+
+1. <https://developer.spotify.com/dashboard> → **Create app**: any name, redirect URI
+   `http://127.0.0.1:8898/callback`, API **Web API**. Copy the **Client ID** (no secret is used).
+2. `archnest spotify login --client-id <ID>` and approve in the browser.
+3. `systemctl --user restart archnest`, then `archnest spotify status` to see this PC listed.
+
+The refresh token is stored in `~/.local/state/archnest/spotify.json` (mode 600). Handoff mode
+polls Spotify every 3 s only while it is on, and never takes playback from phones or other
+computers (set `spotify.handoffFrom` to pick devices yourself).
 
 ### Safety
 
@@ -130,6 +150,7 @@ archnest pair                   QR + pairing code
 archnest trigger <device> on    act as if Google Home switched a device
 archnest run volume.set --percent 30
 archnest list                   built-in actions
+archnest spotify login|status|logout
 archnest check                  validate the config
 journalctl --user -u archnest -f
 ```
