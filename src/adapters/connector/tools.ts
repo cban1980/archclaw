@@ -12,6 +12,7 @@ import { omarchyAction, resolveRef } from "../../resolve.ts";
 import { INFO_TOPICS, OMARCHY_OPS, omarchyCommand, omarchyInfo, screenshot } from "../../omarchy.ts";
 import { monitors } from "../../actions/apps.ts";
 import { availablePrograms, sshHosts, terminalAction } from "../../terminal.ts";
+import { SYSTEM_OPS, SYSTEM_TOPICS, systemCommand, systemInfo } from "../../system.ts";
 import type { SpotifyClient } from "../../spotify/client.ts";
 import type { HueClient } from "../../hue/client.ts";
 import { applyChange, recallScene, summarize } from "../../hue/control.ts";
@@ -41,6 +42,8 @@ export function instructionsFor(config: Config): string {
         "Shutdown, restart, sleep and logout start a countdown on the computer's screen with a Cancel button; only use them when the user clearly asked, and mention they can say cancel (run_action power.cancel).",
         "Remote unlocking doesn't exist on purpose. Locking is fine.",
         "For Omarchy itself (theme, wallpaper, fonts, text size, bar, transparency, workspaces, audio outputs, Bluetooth, brightness, power profile, reminders, notifications, screen recording, repairs) use omarchy_info and omarchy_do. Use screenshot to see what's on a screen.",
+        "Philips Hue lights in the home (lampor): hue_status, hue_set, hue_scene. Terminals running programs (btop, nvim, lazygit…) or ssh: open_terminal.",
+        "Arch Linux itself (packages, updates, services, logs, errors, hardware and temperatures, processes, network, disks, files, Docker): system_info and system_do. Root work (updates, installing, removing) opens a terminal on the computer where the owner types their password.",
         "When the user wants a new setup remembered (\"when I say X, open Y on the left screen\"), save it as a scene with save_scene; give it the words they use as aliases.",
     ];
     if (config.scenes.length) {
@@ -485,6 +488,57 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
             },
         );
     }
+
+    // ── Arch Linux ───────────────────────────────────────────────────────────
+
+    const describe = (spec: Record<string, { description: string; arg?: { hint: string; optional?: boolean } }>) =>
+        Object.entries(spec)
+            .map(([id, o]) => `- ${id}: ${o.description}${o.arg ? ` (arg: ${o.arg.hint}${o.arg.optional ? ", optional" : ""})` : ""}`)
+            .join("\n");
+    server.registerTool(
+        "system_info",
+        {
+            title: "Arch Linux system",
+            description: `Reads the Arch Linux system. Topics:\n${describe(SYSTEM_TOPICS)}`,
+            inputSchema: { topic: z.enum(Object.keys(SYSTEM_TOPICS) as [string, ...string[]]), arg: z.string().optional() },
+            annotations: { readOnlyHint: true, openWorldHint: false },
+        },
+        async ({ topic, arg }) => {
+            try {
+                return text(await systemInfo(topic, arg, { exec }));
+            } catch (err) {
+                return fail((err as Error).message);
+            }
+        },
+    );
+    server.registerTool(
+        "system_do",
+        {
+            title: "Change the Arch Linux system",
+            description:
+                "User-level system changes. Updates, installing and removing packages only open a terminal on the computer " +
+                `where the owner confirms with their password; say so. Operations:\n${describe(SYSTEM_OPS)}`,
+            inputSchema: { operation: z.enum(Object.keys(SYSTEM_OPS) as [string, ...string[]]), arg: z.string().optional() },
+            annotations: { destructiveHint: true, openWorldHint: false },
+        },
+        async ({ operation, arg }) => {
+            let command: string;
+            try {
+                command = await systemCommand(operation, arg, { exec });
+            } catch (err) {
+                return fail((err as Error).message);
+            }
+            return run({
+                id: `system:${operation}${arg ? `=${arg.slice(0, 40)}` : ""}`,
+                title: SYSTEM_OPS[operation]!.description.split(";")[0]!,
+                risk: "safe",
+                async run(ctx) {
+                    const code = await ctx.exec.sh(command);
+                    if (code) throw new Error(`exit ${code}`);
+                },
+            });
+        },
+    );
 
     // ── Omarchy ──────────────────────────────────────────────────────────────
 

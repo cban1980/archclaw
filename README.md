@@ -12,6 +12,7 @@ can say, in any language, from the Claude app on your phone:
 - *"Switch to the Tokyo Night theme and hide the bar"*, *"remind me in 20 minutes to take the pizza out"*,
   *"move the sound to the headset"*, *"what's on my left screen?"*
 - *"Dim the living room to 30 % and make it warm"*, *"turn on the Read scene in the bedroom"*
+- *"Are there any updates?"*, *"how hot is the computer?"*, *"what's eating memory?"*, *"install htop"*
 - *"Lock the computer and turn the screens off"*, *"shut it down"* (with a cancellable countdown on screen).
 - *"When I say movie night, open Jellyfin on the TV screen and turn on night light"*: Claude saves
   that as a scene and remembers it.
@@ -70,6 +71,8 @@ voice mode.
 | `spotify_search`, `spotify_play` | Any track, album, artist or playlist (also your own) on this PC |
 | `omarchy_info`, `omarchy_do` | Omarchy itself: theme, wallpaper, font, text size, bar, transparency, animations, workspaces, fullscreen/float, audio output, mic, brightness, Bluetooth, power profile, reminders, notifications, screen recording, repairs (restart audio/Wi-Fi/Bluetooth/shell) |
 | `screenshot` | Lets Claude see a screen (or all of them) |
+| `system_info` | Arch Linux: overview (kernel, uptime, CPU, memory, disks, temperatures, GPU, failed units), pending updates (repos + AUR), package search/info/installed/orphans/recent, services and their status/logs, journal errors, top processes, network, ping, disks, folder sizes, file search, recent downloads, Docker |
+| `system_do` | Start/stop/restart your user services, end one of your processes, open a file or https URL, set the clipboard; system updates, installing/removing packages and cleaning caches open a terminal on the computer where **you** type the sudo password |
 | `hue_status`, `hue_set`, `hue_scene` | Philips Hue: rooms, zones and lights on/off, brightness, color, color temperature, fades, and Hue scenes (after `archclaw hue pair`) |
 | `find_installed_apps`, `add_app`, `remove_app` | Add programs or web apps |
 | `save_scene`, `remove_scene`, `name_screen`, `set_notes`, `undo_config_change` | Change archclaw's setup |
@@ -84,6 +87,10 @@ voice mode.
   are a fixed catalog, and every value is checked against a list (themes, fonts, outputs, paired
   devices), an enum or a pattern before it is quoted into the command. Custom commands
   (`{ run: … }`, custom `launch:`) are yours to add in the config file.
+- **No root from Claude.** Updates, installs and removals only open a terminal on the computer;
+  nothing happens until someone types the sudo password there. Services Claude may start or stop are
+  your user services; processes it may end are yours, minus the ones the desktop needs. Files are
+  limited to your home, and files that could run as programs are never opened.
 - **Every change Claude makes to the config** is validated, keeps your comments, and can be undone
   (`undo_config_change`; earlier versions are in `~/.local/state/archclaw/config-history/`).
 - **Access**: only Claude's redirect URIs can register; signing in needs your owner password
