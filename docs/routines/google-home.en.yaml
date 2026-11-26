@@ -1,0 +1,196 @@
+# Google Home script editor routines for the default config (config.example.yaml).
+# home.google.com → Automations → Add new → Household → Script editor.
+# Paste the whole file as one household automation. Requires the devices to be in the room
+# "Living Room" (devices are referenced as "<device> - <room>").
+#
+# Not needed as routines (Gemini understands them directly):
+#   "lock the computer"                       → the lock device Computer
+#   "turn off/on the screens"                 → the light device Screens
+#   "set computer volume to 30 percent"       → the dimmer Computer volume
+#   "turn on do not disturb", "night light"   → plugs with the same names
+#
+# Shutdown and restart must still be said twice within 60 s (archnest safety rule),
+# followed by a 30 s countdown with a Cancel button on screen.
+
+metadata:
+  name: Computer
+  description: Voice commands for the Linux PC (archnest)
+
+automations:
+  # ── Power ────────────────────────────────────────────────────────────────
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: shut down the computer
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: turn off the computer for the night
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: power off the computer
+    actions:
+      - type: device.command.OnOff
+        devices: Computer shutdown - Living Room
+        on: true
+
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: restart the computer
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: reboot the computer
+    actions:
+      - type: device.command.OnOff
+        devices: Computer restart - Living Room
+        on: true
+
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: put the computer to sleep
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: computer go to sleep
+    actions:
+      - type: device.command.OnOff
+        devices: Computer sleep - Living Room
+        on: true
+
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: cancel the shutdown
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: cancel the restart
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: don't shut down the computer
+    actions:
+      - type: device.command.OnOff
+        devices: Cancel shutdown - Living Room
+        on: true
+
+  # ── Apps ─────────────────────────────────────────────────────────────────
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: open spotify on the computer
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: start spotify on the computer
+    actions:
+      - type: device.command.OnOff
+        devices: Spotify app - Living Room
+        on: true
+
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: close spotify on the computer
+    actions:
+      - type: device.command.OnOff
+        devices: Spotify app - Living Room
+        on: false
+
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: open the browser
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: start edge
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: open edge on the computer
+    actions:
+      - type: device.command.OnOff
+        devices: Browser - Living Room
+        on: true
+
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: open a terminal
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: new terminal on the computer
+    actions:
+      - type: device.command.OnOff
+        devices: New terminal - Living Room
+        on: true
+
+  # ── Music ────────────────────────────────────────────────────────────────
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: pause the music on the computer
+    actions:
+      - type: device.command.OnOff
+        devices: Computer music - Living Room
+        on: false
+
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: play the music on the computer
+    actions:
+      - type: device.command.OnOff
+        devices: Computer music - Living Room
+        on: true
+
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: next song on the computer
+    actions:
+      - type: device.command.OnOff
+        devices: Next track on computer - Living Room
+        on: true
+
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: previous song on the computer
+    actions:
+      - type: device.command.OnOff
+        devices: Previous track on computer - Living Room
+        on: true
+
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: mute the computer
+    actions:
+      - type: device.command.OnOff
+        devices: Computer volume - Living Room
+        on: false
+
+  # ── Scenes ───────────────────────────────────────────────────────────────
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: time to work
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: start work mode
+    actions:
+      - type: device.command.OnOff
+        devices: Work mode - Living Room
+        on: true
+
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: i'm done with the computer
+    actions:
+      - type: device.command.OnOff
+        devices: Spotify app - Living Room
+        on: false
+      - type: device.command.LockUnlock
+        devices: Computer - Living Room
+        lock: true
+      - type: device.command.OnOff
+        devices: Screens - Living Room
+        on: false

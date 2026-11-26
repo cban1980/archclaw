@@ -1,0 +1,196 @@
+# Google Home script editor routines for the Swedish preset (presets/sv.yaml).
+# home.google.com → Automations → Add new → Household → Script editor.
+# Paste the whole file as one household automation. Requires the devices to be in the room
+# "Vardagsrum" (devices are referenced as "<device> - <room>").
+#
+# Not needed as routines (Gemini understands them directly):
+#   "lås datorn"                              → the lock device Datorn
+#   "släck/tänd skärmarna"                    → the light device Skärmarna
+#   "sätt datorns volym till 30 procent"      → the dimmer Datorns volym
+#   "slå på/av stör ej", "slå på nattljus"    → plugs with the same names
+#
+# Shutdown and restart must still be said twice within 60 s (archnest safety rule),
+# followed by a 30 s countdown with an Avbryt button on screen.
+
+metadata:
+  name: Datorn
+  description: Röstkommandon för Linux-datorn i vardagsrummet (archnest)
+
+automations:
+  # ── Ström ────────────────────────────────────────────────────────────────
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: stäng av datorn
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: stäng ner datorn
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: datorn kan stängas av
+    actions:
+      - type: device.command.OnOff
+        devices: Avstängning - Vardagsrum
+        on: true
+
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: starta om datorn
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: omstart av datorn
+    actions:
+      - type: device.command.OnOff
+        devices: Omstart - Vardagsrum
+        on: true
+
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: datorn ska sova
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: sätt datorn i viloläge
+    actions:
+      - type: device.command.OnOff
+        devices: Viloläge - Vardagsrum
+        on: true
+
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: avbryt avstängningen
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: avbryt omstarten
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: stäng inte av datorn
+    actions:
+      - type: device.command.OnOff
+        devices: Avbryt avstängning - Vardagsrum
+        on: true
+
+  # ── Appar ────────────────────────────────────────────────────────────────
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: öppna spotify på datorn
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: starta spotify på datorn
+    actions:
+      - type: device.command.OnOff
+        devices: Spotify-appen - Vardagsrum
+        on: true
+
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: stäng spotify på datorn
+    actions:
+      - type: device.command.OnOff
+        devices: Spotify-appen - Vardagsrum
+        on: false
+
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: öppna webbläsaren
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: starta edge
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: öppna edge på datorn
+    actions:
+      - type: device.command.OnOff
+        devices: Webbläsaren - Vardagsrum
+        on: true
+
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: öppna en terminal
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: ny terminal på datorn
+    actions:
+      - type: device.command.OnOff
+        devices: Ny terminal - Vardagsrum
+        on: true
+
+  # ── Musik ────────────────────────────────────────────────────────────────
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: pausa musiken på datorn
+    actions:
+      - type: device.command.OnOff
+        devices: Datormusiken - Vardagsrum
+        on: false
+
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: spela musiken på datorn
+    actions:
+      - type: device.command.OnOff
+        devices: Datormusiken - Vardagsrum
+        on: true
+
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: nästa låt på datorn
+    actions:
+      - type: device.command.OnOff
+        devices: Nästa låt på datorn - Vardagsrum
+        on: true
+
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: förra låten på datorn
+    actions:
+      - type: device.command.OnOff
+        devices: Förra låten på datorn - Vardagsrum
+        on: true
+
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: tysta datorn
+    actions:
+      - type: device.command.OnOff
+        devices: Datorns volym - Vardagsrum
+        on: false
+
+  # ── Scener ───────────────────────────────────────────────────────────────
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: dags att jobba
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: starta arbetsläge
+    actions:
+      - type: device.command.OnOff
+        devices: Arbetsläge - Vardagsrum
+        on: true
+
+  - starters:
+      - type: assistant.event.OkGoogle
+        eventData: query
+        is: jag är klar med datorn
+    actions:
+      - type: device.command.OnOff
+        devices: Spotify-appen - Vardagsrum
+        on: false
+      - type: device.command.LockUnlock
+        devices: Datorn - Vardagsrum
+        lock: true
+      - type: device.command.OnOff
+        devices: Skärmarna - Vardagsrum
+        on: false
