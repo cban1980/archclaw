@@ -106,6 +106,7 @@ export class ArchclawOAuthProvider implements OAuthServerProvider {
         if (pending.params.state !== undefined) redirect.searchParams.set("state", pending.params.state);
 
         if (decision !== "allow") {
+            this.#log.warn(`connector: sign-in denied on the consent page (decision=${decision ?? "none"})`);
             this.#pending.delete(id!);
             redirect.searchParams.set("error", "access_denied");
             res.redirect(redirect.toString());
@@ -203,7 +204,7 @@ const STYLE = `body{font:16px system-ui,sans-serif;background:#111;color:#eee;di
 main{max-width:420px;width:100%;background:#1c1c1c;border:1px solid #333;border-radius:12px;padding:24px}
 h1{font-size:20px;margin:0 0 12px}p{color:#bbb;line-height:1.5}.err{color:#ff7b72}
 input{width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid #444;background:#111;color:#eee;font-size:16px;margin:8px 0 16px}
-.row{display:flex;gap:8px}button{flex:1;padding:10px;border-radius:8px;border:0;font-size:16px;cursor:pointer}
+.row{display:flex;flex-direction:row-reverse;gap:8px}button{flex:1;padding:10px;border-radius:8px;border:0;font-size:16px;cursor:pointer}
 .allow{background:#3b82f6;color:#fff}.deny{background:#333;color:#eee}`;
 
 function consentPage(o: { id: string; name: string; redirectHost: string; error?: string }) {
@@ -217,8 +218,8 @@ ${o.error ? `<p class="err">${esc(o.error)}</p>` : ""}
 <input type="hidden" name="id" value="${esc(o.id)}">
 <label for="pw">archclaw owner password</label>
 <input id="pw" name="password" type="password" autocomplete="current-password" autofocus>
-<div class="row"><button class="deny" name="decision" value="deny">Deny</button>
-<button class="allow" name="decision" value="allow">Allow</button></div>
+<div class="row"><button class="allow" type="submit" name="decision" value="allow">Allow</button>
+<button class="deny" type="submit" name="decision" value="deny" formnovalidate>Deny</button></div>
 </form></main></body></html>`;
 }
 

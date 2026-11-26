@@ -44,7 +44,7 @@ export async function startConnector(deps: Deps) {
     // that stalls can be followed in the journal.
     app.use((req, res, next) => {
         res.on("finish", () => {
-            if (req.path !== "/mcp" || res.statusCode >= 400) log.info(`connector: ${req.method} ${req.path} → ${res.statusCode}`);
+            if (req.path !== "/mcp" || res.statusCode >= 400) log.info(`connector: ${req.method} ${req.originalUrl.split("?")[0]} → ${res.statusCode}`);
         });
         next();
     });

@@ -100,6 +100,9 @@ test("full OAuth + MCP flow as Claude runs it", async () => {
     const page = await (await req(`/authorize?${q}`)).text();
     const id = page.match(/name="id" value="([^"]+)"/)![1]!;
 
+    // Pressing Enter submits with the first button, so Allow must come first.
+    assert.ok(page.indexOf('value="allow"') < page.indexOf('value="deny"'), "Allow is the default (first) button");
+
     // 5. Wrong password is refused; right password redirects with a code.
     assert.equal((await req("/consent", form({ id, password: "nope", decision: "allow" }))).status, 401);
     const approved = await req("/consent", form({ id, password: PASSWORD, decision: "allow" }));
