@@ -79,6 +79,7 @@ Steps:
 | `{ open: terminal, new: true }` | always a new window |
 | `{ close: app }` | closes every window of the app |
 | `{ play: spotify, screen: right }` | resumes music, or opens the player there and starts playback |
+| `{ omarchy: theme.set, value: Tokyo Night }` | an Omarchy operation (the list is in `src/omarchy.ts`; Claude sees it in `omarchy_do`) |
 | `{ run: "shell command" }` | anything; **hand edits only** (Claude can't add these) |
 
 Power actions can't be in scenes. When Claude saves a scene without stop steps, stopping closes

@@ -9,6 +9,8 @@ can say, in any language, from the Claude app on your phone:
 - *"Start mirc"*: Discord and a terminal on the left screen, Edge in the middle, Spotify on the right.
 - *"Play Daft Punk's Discovery on the computer"*, *"skip this song"*, *"volume to 30"*.
 - *"Move Spotify to the middle screen"*, *"close the browser"*, *"what's open right now?"*
+- *"Switch to the Tokyo Night theme and hide the bar"*, *"remind me in 20 minutes to take the pizza out"*,
+  *"move the sound to the headset"*, *"what's on my left screen?"*
 - *"Lock the computer and turn the screens off"*, *"shut it down"* (with a cancellable countdown on screen).
 - *"When I say movie night, open Jellyfin on the TV screen and turn on night light"*: Claude saves
   that as a scene and remembers it.
@@ -64,6 +66,8 @@ voice mode.
 | `open_app`, `close_app`, `move_window`, `focus_window`, `close_window` | Apps and windows on named screens |
 | `run_action` | Volume, media keys, screens on/off, lock, do not disturb, night light, keep awake, power |
 | `spotify_search`, `spotify_play` | Any track, album, artist or playlist (also your own) on this PC |
+| `omarchy_info`, `omarchy_do` | Omarchy itself: theme, wallpaper, font, text size, bar, transparency, animations, workspaces, fullscreen/float, audio output, mic, brightness, Bluetooth, power profile, reminders, notifications, screen recording, repairs (restart audio/Wi-Fi/Bluetooth/shell) |
+| `screenshot` | Lets Claude see a screen (or all of them) |
 | `find_installed_apps`, `add_app`, `remove_app` | Add programs or web apps |
 | `save_scene`, `remove_scene`, `name_screen`, `set_notes`, `undo_config_change` | Change archclaw's setup |
 
@@ -73,7 +77,9 @@ voice mode.
   is refused right after boot, and can't be part of a scene. `run_action power.cancel` stops it.
 - **No remote unlock.** Claude can lock the computer, never unlock it.
 - **No shell from Claude.** Apps Claude adds are launched from installed desktop entries or as web
-  apps; scenes Claude saves can only open, close, play and run built-in actions. Custom commands
+  apps; scenes Claude saves can only open, close, play and run built-in actions. Omarchy operations
+  are a fixed catalog, and every value is checked against a list (themes, fonts, outputs, paired
+  devices), an enum or a pattern before it is quoted into the command. Custom commands
   (`{ run: … }`, custom `launch:`) are yours to add in the config file.
 - **Every change Claude makes to the config** is validated, keeps your comments, and can be undone
   (`undo_config_change`; earlier versions are in `~/.local/state/archclaw/config-history/`).

@@ -8,7 +8,9 @@ import type { Dispatcher, Registry } from "../../core/dispatcher.ts";
 import type { Executor } from "../../core/executor.ts";
 import type { Safety } from "../../core/safety.ts";
 import { appFromDesktopId, findApps, webAppLaunch } from "../../desktop-apps.ts";
-import { resolveRef } from "../../resolve.ts";
+import { omarchyAction, resolveRef } from "../../resolve.ts";
+import { INFO_TOPICS, OMARCHY_OPS, omarchyCommand, omarchyInfo, screenshot } from "../../omarchy.ts";
+import { monitors } from "../../actions/apps.ts";
 import type { SpotifyClient } from "../../spotify/client.ts";
 import { playUriHere } from "../../spotify/actions.ts";
 import { computerStatus } from "../../status.ts";
@@ -34,6 +36,7 @@ export function instructionsFor(config: Config): string {
         "Act directly on clear requests; call get_status first when the request depends on the current state. Keep replies short: the user is often talking by voice from their phone.",
         "Shutdown, restart, sleep and logout start a countdown on the computer's screen with a Cancel button; only use them when the user clearly asked, and mention they can say cancel (run_action power.cancel).",
         "Remote unlocking doesn't exist on purpose. Locking is fine.",
+        "For Omarchy itself (theme, wallpaper, fonts, text size, bar, transparency, workspaces, audio outputs, Bluetooth, brightness, power profile, reminders, notifications, screen recording, repairs) use omarchy_info and omarchy_do. Use screenshot to see what's on a screen.",
         "When the user wants a new setup remembered (\"when I say X, open Y on the left screen\"), save it as a scene with save_scene; give it the words they use as aliases.",
     ];
     if (config.scenes.length) {
@@ -58,6 +61,7 @@ const step = z.union([
     z.object({ close: z.string().describe("App key") }).strict(),
     z.object({ play: z.string().describe("App key of a music player, e.g. spotify"), screen: z.string().optional() }).strict(),
     z.object({ action: z.string().describe("Built-in action id from list_capabilities, e.g. display.off, volume.mute, power.lock") }).strict(),
+    z.object({ omarchy: z.string().describe("Operation from omarchy_do, e.g. theme.set, bar, animations"), value: z.string().optional() }).strict(),
 ]);
 type Step = z.infer<typeof step>;
 
@@ -69,6 +73,7 @@ function toRefs(steps: Step[], registry: Registry): SingleRef[] {
             if (!registry.get(s.action)) throw new Error(`unknown action ${s.action}`);
             return s.action;
         }
+        if ("omarchy" in s && !OMARCHY_OPS[s.omarchy]) throw new Error(`unknown Omarchy operation ${s.omarchy}`);
         return s;
     });
 }
@@ -337,6 +342,63 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
         );
     }
 
+    // ── Omarchy ──────────────────────────────────────────────────────────────
+
+    const ops = Object.keys(OMARCHY_OPS) as [string, ...string[]];
+    server.registerTool(
+        "omarchy_info",
+        {
+            title: "Omarchy state",
+            description:
+                "Read Omarchy state. overview: theme, wallpaper, font, text size, CPU/memory, weather, battery, network, version. " +
+                "themes/fonts: current and available. audio: outputs and mic mute. bluetooth: power and paired devices. " +
+                "network, power (profiles, battery), reminders, updates.",
+            inputSchema: { topic: z.enum(INFO_TOPICS) },
+            annotations: { readOnlyHint: true, openWorldHint: false },
+        },
+        async ({ topic }) => json(await omarchyInfo(topic, { exec })),
+    );
+
+    server.registerTool(
+        "omarchy_do",
+        {
+            title: "Change Omarchy",
+            description:
+                "Runs one Omarchy operation. Operations and values:\n" +
+                Object.entries(OMARCHY_OPS)
+                    .map(([id, o]) => `- ${id}: ${o.description}${o.value ? ` (value: ${o.value.hint}${o.value.optional ? ", optional" : ""})` : ""}`)
+                    .join("\n"),
+            inputSchema: { operation: z.enum(ops), value: z.string().optional() },
+            annotations: { destructiveHint: true, openWorldHint: false },
+        },
+        async ({ operation, value }) => {
+            try {
+                await omarchyCommand(operation, value, { exec }); // validate first, for a clear error
+            } catch (err) {
+                return fail((err as Error).message);
+            }
+            return run(omarchyAction(operation, value));
+        },
+    );
+
+    server.registerTool(
+        "screenshot",
+        {
+            title: "See a screen",
+            description: "Takes a screenshot of one monitor (screen name or monitor name), or of all of them side by side, so you can see what's on it.",
+            inputSchema: { screen: z.string().optional() },
+            annotations: { readOnlyHint: true, openWorldHint: false },
+        },
+        async ({ screen }) => {
+            try {
+                const image = await screenshot(monitorOf(screen), await monitors(exec));
+                return { content: [{ type: "image" as const, data: image.toString("base64"), mimeType: "image/jpeg" }] };
+            } catch (err) {
+                return fail((err as Error).message);
+            }
+        },
+    );
+
     // ── setup: Claude manages archclaw's own config ──────────────────────────
 
     server.registerTool(
@@ -403,7 +465,8 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
             title: "Save a scene",
             description:
                 "Creates or replaces a named setup the user can start and stop by name. Steps run in order: " +
-                "{open: app, screen?}, {close: app}, {play: app, screen?}, {action: id}. Without stop steps, stopping " +
+                "{open: app, screen?}, {close: app}, {play: app, screen?}, {action: id}, {omarchy: operation, value?} " +
+                "(any omarchy_do operation, e.g. theme.set). Without stop steps, stopping " +
                 "closes every app the scene opens. Put the words the user says for it in aliases (any language). " +
                 "Power actions can't be in scenes.",
             inputSchema: {

@@ -41,6 +41,7 @@ src/
   config-store.ts        live config + validated edits (apps, scenes, screens, notes), history, undo
   status.ts              computer snapshot for get_status: lock, screens, volume, media, windows, scenes
   desktop-apps.ts        installed .desktop entries → safe launch commands; web app URLs
+  omarchy.ts             Omarchy catalog (operations with validated values), read-only info topics, grim screenshots
   init.ts                config from the example: monitors → left/middle/right, default browser/terminal
   resolve.ts             action refs → Action: ids, { run }, { open, screen, new }, { close }, { play, screen }, lists
   core/                  action types, dispatcher/registry, safety, executor, notifier, log

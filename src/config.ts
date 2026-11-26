@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
 import { z } from "zod";
+import { OMARCHY_OPS } from "./omarchy.ts";
 
 const singleRef = z.union([
     /** A built-in action id (`archclaw list`), e.g. display.off. */
@@ -14,6 +15,8 @@ const singleRef = z.union([
     z.object({ close: z.string().min(1) }).strict(),
     /** Play music in an app (MPRIS): resumes it if running, otherwise opens it (on `screen`) and starts playback. */
     z.object({ play: z.string().min(1), screen: z.string().min(1).optional() }).strict(),
+    /** An Omarchy operation (see omarchy.ts), e.g. { omarchy: theme.set, value: Tokyo Night }. */
+    z.object({ omarchy: z.string().min(1), value: z.string().optional() }).strict(),
 ]);
 /** One action, or a list run in order. */
 const actionRef = z.union([singleRef, z.array(singleRef).min(1)]);
@@ -144,6 +147,9 @@ export function parseConfig(raw: unknown, source = "config"): Config {
             seen.set(key, s.name);
         }
         for (const r of refsOf(s)) {
+            if (typeof r === "object" && "omarchy" in r && !(r.omarchy in OMARCHY_OPS)) {
+                throw new Error(`invalid ${source}: scene "${s.name}" uses unknown Omarchy operation "${r.omarchy}"`);
+            }
             if (typeof r === "string" && RISKY.test(r)) {
                 throw new Error(`invalid ${source}: scene "${s.name}" uses ${r}; power actions can't be part of a scene`);
             }
