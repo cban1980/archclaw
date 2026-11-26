@@ -51,6 +51,10 @@ export async function startConnector(deps: Deps) {
     });
 
     app.post("/mcp", auth, async (req, res) => {
+        for (const m of [req.body].flat() as Array<{ method?: string; params?: { name?: string; arguments?: unknown } }>) {
+            if (m?.method === "tools/call") log.info(`claude: ${m.params?.name} ${JSON.stringify(m.params?.arguments ?? {})}`);
+            else if (m?.method && !m.method.startsWith("notifications/")) log.info(`claude: ${m.method}`);
+        }
         // Stateless: a fresh server + transport per request; nothing to clean up between calls.
         // The config can change between requests (Claude edits it), so build tools and instructions each time.
         const server = new McpServer({ name: "archclaw", version: "2.0.0" }, { instructions: instructionsFor(deps.store.config) });
