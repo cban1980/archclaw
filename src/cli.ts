@@ -300,7 +300,8 @@ async function main() {
             const { generateRoutines } = await import("./routines.ts");
             const yaml = generateRoutines(loadConfig());
             if (flag("--copy")) {
-                execFileSync("wl-copy", [], { input: yaml });
+                // wl-copy stays in the background to serve the clipboard; don't wait on its output pipes.
+                execFileSync("wl-copy", [], { input: yaml, stdio: ["pipe", "ignore", "ignore"] });
                 console.error("Copied. Paste it at home.google.com → Automations → Add new → Script editor.");
             } else process.stdout.write(yaml);
             return;
