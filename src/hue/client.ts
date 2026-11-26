@@ -101,10 +101,32 @@ function call<T>(opts: {
     });
 }
 
-/** Finds bridges on the LAN (mDNS first, then Philips' discovery service). */
-export async function discoverBridges(sh: (cmd: string) => Promise<string>): Promise<Array<{ ip: string; bridgeId: string }>> {
+/** Asks a device at `ip` whether it is a Hue bridge (the unauthenticated config endpoint). */
+export async function probeBridge(ip: string): Promise<{ ip: string; bridgeId: string } | undefined> {
+    if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) throw new Error(`"${ip}" isn't an IPv4 address`);
+    return new Promise(resolve => {
+        const req = request({ host: ip, port: 443, path: "/api/0/config", rejectUnauthorized: false, timeout: 4000, agent: false }, res => {
+            let data = "";
+            res.on("data", d => (data += d));
+            res.on("end", () => {
+                try {
+                    const id = (JSON.parse(data) as { bridgeid?: string }).bridgeid;
+                    resolve(id ? { ip, bridgeId: id.toLowerCase() } : undefined);
+                } catch {
+                    resolve(undefined);
+                }
+            });
+        });
+        req.on("timeout", () => req.destroy());
+        req.on("error", () => resolve(undefined));
+        req.end();
+    });
+}
+
+/** Finds bridges on the LAN: mDNS, then Philips' discovery service, then the last known address. */
+export async function discoverBridges(sh: (cmd: string) => Promise<string>, lastKnown?: string): Promise<Array<{ ip: string; bridgeId: string }>> {
     const found = new Map<string, string>();
-    for (const line of (await sh("timeout 5 avahi-browse -rpt _hue._tcp 2>/dev/null")).split("\n")) {
+    for (const line of (await sh("timeout 10 avahi-browse -rpt _hue._tcp 2>/dev/null")).split("\n")) {
         const f = line.split(";");
         const id = /bridgeid=([0-9a-f]{16})/i.exec(line)?.[1];
         if (f[0] === "=" && f[2] === "IPv4" && f[7] && id) found.set(id.toLowerCase(), f[7]);
@@ -114,6 +136,10 @@ export async function discoverBridges(sh: (cmd: string) => Promise<string>): Pro
             const res = await fetch("https://discovery.meethue.com/", { signal: AbortSignal.timeout(5000) });
             for (const b of (await res.json()) as Array<{ id: string; internalipaddress: string }>) found.set(b.id.toLowerCase(), b.internalipaddress);
         } catch {}
+    }
+    if (!found.size && lastKnown) {
+        const b = await probeBridge(lastKnown);
+        if (b) found.set(b.bridgeId, b.ip);
     }
     return [...found].map(([bridgeId, ip]) => ({ ip, bridgeId }));
 }

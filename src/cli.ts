@@ -261,16 +261,25 @@ async function main() {
         case "hue": {
             const sub = rest[0] ?? "status";
             if (sub === "pair") {
-                const { discoverBridges, pairBridge } = await import("./hue/client.ts");
+                const { discoverBridges, pairBridge, probeBridge } = await import("./hue/client.ts");
                 const cap = (cmd: string) => new Promise<string>(r => r(sh("sh", ["-c", cmd])));
-                let bridges = await discoverBridges(cap);
                 const ip = option("--ip");
-                if (ip) bridges = bridges.filter(b => b.ip === ip);
-                if (!bridges.length) throw new Error(ip ? `no Hue bridge at ${ip}` : "no Hue bridge found on the network");
+                const lastFile = join(paths.state, "hue-bridge-last");
+                const lastKnown = existsSync(lastFile) ? readFileSync(lastFile, "utf8").trim() : undefined;
+                const probed = ip ? await probeBridge(ip) : undefined;
+                const bridges = ip ? (probed ? [probed] : []) : await discoverBridges(cap, lastKnown);
+                if (!bridges.length) {
+                    throw new Error(
+                        ip
+                            ? `no Hue bridge answers at ${ip}`
+                            : "no Hue bridge found on the network. If you know its address (the Hue app: Settings → Bridges → ⓘ), run: archclaw hue pair --ip <address>",
+                    );
+                }
                 if (bridges.length > 1) throw new Error(`several bridges: ${bridges.map(b => b.ip).join(", ")}; pick one with --ip`);
                 const b = bridges[0]!;
-                console.log(`Found the Hue bridge ${b.bridgeId} at ${b.ip}.\nPress the round link button on the bridge now (within 60 s)…`);
-                const auth = await pairBridge(b.ip, b.bridgeId, sh("hostname", []) || "pc");
+                writeFileSync(lastFile, b.ip);
+                console.log(`Found the Hue bridge ${b.bridgeId} at ${b.ip}.\nPress the round link button on the bridge now (within 90 s)…`);
+                const auth = await pairBridge(b.ip, b.bridgeId, sh("hostname", []) || "pc", 90_000);
                 hueStore.save(auth);
                 const { summarize } = await import("./hue/control.ts");
                 const sum = summarize(await hue.state());
