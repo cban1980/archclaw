@@ -159,6 +159,32 @@ test("full OAuth + MCP flow as Claude runs it", async () => {
     assert.equal(findScene(loadConfig(configPath), "mirc"), undefined);
     assert.doesNotMatch(readFileSync(configPath, "utf8"), /evil|curl/);
 
+    // 7b. MCP 2026-07-28: stateless requests with _meta, server/discover, cache hints.
+    const modern = (body: Record<string, unknown>, headers: Record<string, string> = {}) =>
+        req("/mcp", {
+            method: "POST",
+            headers: { authorization: `Bearer ${tokens.access_token}`, "content-type": "application/json", accept: "application/json, text/event-stream", "mcp-protocol-version": "2026-07-28", ...headers },
+            body: JSON.stringify({ jsonrpc: "2.0", ...body }),
+        });
+    const meta = { "io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientCapabilities": {} };
+    const disc = await (await modern({ id: 20, method: "server/discover", params: { _meta: meta } }, { "mcp-method": "server/discover" })).json();
+    assert.deepEqual(disc.result.supportedVersions, ["2026-07-28"]);
+    assert.ok(disc.result.capabilities.tools && disc.result.ttlMs > 0 && disc.result.cacheScope === "private");
+    assert.match(disc.result.instructions, /scene|Scenes/);
+    const list = await (await modern({ id: 21, method: "tools/list", params: { _meta: meta } })).json();
+    assert.equal(list.result.resultType, "complete");
+    assert.ok(list.result.ttlMs > 0);
+    assert.ok(list.result.tools.some((t: { name: string }) => t.name === "hue_set"));
+    const called = await (await modern({ id: 22, method: "tools/call", params: { _meta: meta, name: "run_action", arguments: { action: "power.lock" } } }, { "mcp-name": "run_action" })).json();
+    assert.match(called.result.content[0].text, /done/);
+    const oldVersion = await modern({ id: 23, method: "tools/list", params: { _meta: { ...meta, "io.modelcontextprotocol/protocolVersion": "1900-01-01" } } });
+    assert.equal(oldVersion.status, 400);
+    assert.equal((await oldVersion.json()).error.code, -32022);
+    const mismatch = await modern({ id: 24, method: "tools/list", params: { _meta: meta } }, { "mcp-method": "tools/call" });
+    assert.equal((await mismatch.json()).error.code, -32020);
+    const unknown = await modern({ id: 25, method: "nope/nope", params: { _meta: meta } });
+    assert.equal(unknown.status, 404);
+
     // 8. Refresh rotates: the new token works, the old one is dead.
     const refreshed = await (await req("/token", form({ grant_type: "refresh_token", refresh_token: tokens.refresh_token, client_id: reg.client_id }))).json();
     assert.ok(refreshed.access_token && refreshed.refresh_token !== tokens.refresh_token);

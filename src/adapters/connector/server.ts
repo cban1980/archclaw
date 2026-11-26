@@ -9,6 +9,9 @@ import type { Notifier } from "../../core/notifier.ts";
 import { ArchclawOAuthProvider, SCOPE } from "./oauth.ts";
 import type { ConnectorStore } from "./store.ts";
 import { instructionsFor, registerTools, type ToolDeps } from "./tools.ts";
+import { handleModern, isModern } from "./modern.ts";
+
+const VERSION = "2.1.0";
 
 type Deps = ToolDeps & { log: Logger; notifier: Notifier; auth: ConnectorStore };
 
@@ -37,6 +40,12 @@ export async function startConnector(deps: Deps) {
         log.warn(`connector: refused a connection from ${from}`);
         res.status(403).end();
     });
+    // Log the OAuth steps (path and status only, never query strings or bodies), so a sign-in
+    // that stalls can be followed in the journal.
+    app.use((req, res, next) => {
+        if (req.path !== "/mcp") res.on("finish", () => log.info(`connector: ${req.method} ${req.path} → ${res.statusCode}`));
+        next();
+    });
     // Requests arrive through the tunnel daemon, which sets X-Forwarded-For.
     app.set("trust proxy", c.allowFrom);
     app.use(express.urlencoded({ extended: false }));
@@ -57,8 +66,22 @@ export async function startConnector(deps: Deps) {
         }
         // Stateless: a fresh server + transport per request; nothing to clean up between calls.
         // The config can change between requests (Claude edits it), so build tools and instructions each time.
-        const server = new McpServer({ name: "archclaw", version: "2.0.0" }, { instructions: instructionsFor(deps.store.config) });
-        registerTools(server, deps);
+        const build = () => {
+            const s = new McpServer({ name: "archclaw", version: VERSION }, { instructions: instructionsFor(deps.store.config) });
+            registerTools(s, deps);
+            return s;
+        };
+        // MCP 2026-07-28 (stateless, server/discover) is answered here; older revisions go to the SDK.
+        if (isModern(req.body)) {
+            try {
+                await handleModern(req, res, { build, instructions: () => instructionsFor(deps.store.config), name: "archclaw", version: VERSION, log });
+            } catch (err) {
+                log.error(`connector: ${(err as Error).message}`);
+                if (!res.headersSent) res.status(500).json({ jsonrpc: "2.0", error: { code: -32603, message: "internal error" }, id: null });
+            }
+            return;
+        }
+        const server = build();
         const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
         res.on("close", () => {
             void transport.close();
