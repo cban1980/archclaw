@@ -1,0 +1,139 @@
+# archnest config. `archnest init` writes this to ~/.config/archnest/config.yaml with your
+# monitors and a random pairing passcode. Device names are what you say to Google.
+# A Swedish preset lives in presets/sv.yaml (`archnest init --preset sv`).
+name: Computer
+
+matter:
+  port: 5540
+  # Change these before pairing; the defaults are well-known test values.
+  passcode: 20202021
+  discriminator: 3840
+
+# Friendly names for your monitors (see `hyprctl monitors`), used by `screen:` below.
+screens:
+  left: HDMI-A-1
+  middle: DP-3
+  right: HDMI-A-2
+
+# Apps archnest can open/close. `match` is checked against window class and title.
+apps:
+  edge:
+    launch: uwsm-app -- microsoft-edge-stable
+    match: microsoft-edge
+  spotify:
+    launch: omarchy-launch-spotify
+    match: spotify
+  terminal:
+    launch: uwsm-app -- xdg-terminal-exec
+    match: ghostty
+
+safety:
+  countdownSeconds: 30     # risky actions show a notification with a Cancel button first
+  bootGraceSeconds: 120    # ignore risky commands right after boot
+  repeatWindowSeconds: 60  # from Google Home, risky commands must be given twice within this window
+
+# Device types and how Gemini understands them:
+#   lock:      "lock the computer"               runs `on`; remote unlocking is always refused
+#   light:     "turn off the screens"            on/off; "turn off all lights" includes it
+#   plug:      "turn on/off X"                   on/off
+#   dimmer:    "set X to 30 percent"             on/off + level (`level` action gets the percent)
+#   momentary: a button for routines             runs `on`, then flips back off
+# Actions: built-in ids (`archnest list`), { run: "shell" }, { open: app, screen: name, new: true },
+# { close: app }, or a list of these run in order (a scene).
+# Power actions (shutdown/reboot/suspend/logout) are only allowed on momentary devices.
+# `probe` is polled every 5 s (exit 0 = on/locked) so Google Home shows the real state.
+devices:
+  - name: Computer
+    type: lock
+    on: power.lock
+    probe: omarchy-hyprland-session-locked
+
+  - name: Screens
+    type: light
+    initial: true
+    on: display.on
+    off: display.off
+    probe: "hyprctl monitors -j | jq -e 'length > 0 and all(.[]; .dpmsStatus)'"
+
+  # Sound and music. "Computer volume" is a dimmer: "set computer volume to 30 percent".
+  # Note: Google treats dimmers as lights, so "turn off all lights" also mutes the PC.
+  - name: Computer volume
+    type: dimmer
+    initial: true
+    on: volume.unmute
+    off: volume.mute
+    level: volume.set
+    probe: "LC_ALL=C pactl get-sink-mute \"$(omarchy-audio-output-sink)\" | grep -q 'Mute: no'"
+    levelProbe: "LC_ALL=C pactl get-sink-volume \"$(omarchy-audio-output-sink)\" | awk 'NR==1{for(i=1;i<=NF;i++) if($i ~ /%$/){sub(\"%\",\"\",$i); print $i; exit}}'"
+
+  - name: Computer music
+    type: plug                 # shows whether anything is playing (Spotify, browser, …)
+    on: media.play
+    off: media.pause
+    probe: test "$(playerctl status 2>/dev/null)" = Playing
+
+  - name: Next track on computer
+    type: momentary
+    on: media.next
+
+  - name: Previous track on computer
+    type: momentary
+    on: media.previous
+
+  # Desktop toggles; each one shows its real state in Google Home.
+  - name: Do not disturb
+    type: plug
+    on: dnd.on
+    off: dnd.off
+    probe: test "$(omarchy-shell notifications isDnd)" = on
+
+  - name: Night light
+    type: plug
+    on: nightlight.on
+    off: nightlight.off
+    probe: omarchy-toggle-nightlight --status | jq -e .enabled >/dev/null
+
+  - name: Keep computer awake
+    type: plug
+    on: awake.on
+    off: awake.off
+    probe: omarchy-toggle-idle status | jq -e .enabled >/dev/null
+
+  # Apps. Plugs show in Google Home whether the app is running.
+  - name: Spotify app
+    type: plug
+    on: { open: spotify, screen: right }
+    off: { close: spotify }
+
+  - name: Browser
+    type: momentary          # open only: closing the browser by voice could lose tabs
+    on: { open: edge, screen: left }
+
+  - name: New terminal
+    type: momentary          # always a new window; never closes terminals (this one included)
+    on: { open: terminal, screen: middle, new: true }
+
+  # A scene: everything at once, each on its own screen.
+  - name: Work mode
+    type: momentary
+    on:
+      - { open: edge, screen: left }
+      - { open: terminal, screen: middle, new: true }
+      - { open: spotify, screen: right }
+
+  # Triggered by routines ("shut down the computer", "restart the computer", ...).
+  - name: Computer shutdown
+    type: momentary
+    on: power.shutdown
+
+  - name: Computer restart
+    type: momentary
+    on: power.reboot
+
+  - name: Computer sleep
+    type: momentary
+    on: power.suspend
+
+  - name: Cancel shutdown
+    type: momentary
+    on: power.cancel
