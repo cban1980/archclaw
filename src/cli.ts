@@ -127,6 +127,14 @@ async function main() {
             }
             const { startMatter } = await import("./adapters/matter.ts");
             await startMatter({ config, registry, dispatcher, exec, log }, paths.state);
+            if (pairedFabrics(paths.state)) {
+                const { describeChanges, diffDevices } = await import("./devices-changed.ts");
+                const message = describeChanges(diffDevices(config, paths.state), config.room);
+                if (message) {
+                    log.warn(message);
+                    notifier.info("archnest: devices changed", message);
+                }
+            }
             if (config.connector.enabled) {
                 // A broken connector must not take the Google Home bridge down with it.
                 try {

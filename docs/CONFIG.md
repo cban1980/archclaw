@@ -46,6 +46,22 @@ devices:
       off: ["screens off please"]
 ```
 
+### Renaming a device
+
+To Google Home, a renamed device is a **new device**. It arrives without a room, so voice
+commands answer "set up your devices in the Google Home app", and the old name lingers offline.
+After a rename:
+
+1. Restart: `systemctl --user restart archnest`. archnest notifies you which devices are new and
+   which are gone.
+2. In the Google Home app, put the new device in your room, and remove the old one if it's
+   still listed.
+3. Run `archnest routines --copy` and paste it over your script in the script editor.
+
+Choose names Gemini hears reliably: real words in your assistant's language
+(e.g. *Arbetsläge*, *Fritidsläge*) work much better than made-up words or English words in a
+Swedish sentence.
+
 ### Types
 
 Gemini understands each type natively, so these work without any routine:

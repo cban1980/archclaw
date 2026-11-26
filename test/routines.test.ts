@@ -46,3 +46,14 @@ test("window classes are guessed from desktop ids", () => {
     assert.equal(classFromDesktopId("google-chrome-stable.desktop"), "google-chrome");
     assert.equal(classFromDesktopId("Alacritty.desktop"), "Alacritty");
 });
+
+test("renamed devices are reported as added and removed", async () => {
+    const { diffDevices, describeChanges } = await import("../src/devices-changed.ts");
+    const dir = mkdtempSync(join(tmpdir(), "archnest-"));
+    const devs = (...names: string[]) => ({ devices: names.map(name => ({ name })) }) as never;
+    assert.deepEqual(diffDevices(devs("Lock", "Chat"), dir), { added: [], removed: [] }); // first run: baseline
+    const changes = diffDevices(devs("Lock", "Mirc"), dir);
+    assert.deepEqual(changes, { added: ["Mirc"], removed: ["Chat"] });
+    assert.match(describeChanges(changes, "Desk")!, /Mirc.*room "Desk"/);
+    assert.equal(describeChanges(diffDevices(devs("Lock", "Mirc"), dir), "Desk"), undefined);
+});

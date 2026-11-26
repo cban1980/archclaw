@@ -175,7 +175,7 @@ journalctl --user -u archnest -f
 | Symptom | Fix |
 |---|---|
 | The phone keeps "looking for a Matter device" | Firewall: open 5353/udp and 5540/udp. Phone and PC must be on the same network. |
-| "Configure your devices in Google Home" | The device has no room. Put it in the archnest room. |
+| "Configure your devices in Google Home" / "I find no device called X" | The device has no room: put it in the archnest room. A rename makes a new device, which needs its room again ([renaming](docs/CONFIG.md#renaming-a-device)). Made-up names may also be misheard; prefer real words. |
 | A device shows "offline" right after a restart | The hub re-subscribes within a few minutes. |
 | "Computer (2)" in Google Home | The bridge and a device share a name. `archnest check` refuses this now. |
 | Gemini says "I can't run programs on your PC" | Use device names and phrases from the config, not "run …"/"start the program …". |
