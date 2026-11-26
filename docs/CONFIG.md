@@ -146,6 +146,9 @@ apps:
     player: spotify                         # MPRIS name for `play` (`playerctl -l`); defaults to the key
 ```
 
+Remmina asks "Are you sure you want to close?" when a window closes. To make `close` work
+hands-free, set `confirm_close=false` in `~/.config/remmina/remmina.pref` while Remmina isn't running.
+
 To find `match`, open the app and run `hyprctl clients -j | jq -r '.[] | "\(.class)  \(.title)"'`.
 For terminal apps, give them their own app id so they can be told apart:
 `omarchy-launch-tui --app-id=org.omarchy.myapp <command>`, then use `match: myapp`.
