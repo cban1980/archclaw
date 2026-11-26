@@ -18,6 +18,8 @@ import { Safety, type SafetyConfig } from "./core/safety.ts";
 import { initConfig } from "./init.ts";
 import { resolveRef } from "./resolve.ts";
 import { SpotifyClient, SpotifyTokenStore } from "./spotify/client.ts";
+import { HueClient, HueStore } from "./hue/client.ts";
+import { setHueClient } from "./hue/control.ts";
 import { handoffFlag, spotifyActions, spotifyEnabled, startHandoff } from "./spotify/actions.ts";
 
 const usage = `usage: archclaw <command>
@@ -33,6 +35,8 @@ const usage = `usage: archclaw <command>
   connector url <https-url>      the public address your tunnel publishes
   connector status               address, password and connected Claude clients
   connector revoke               sign every Claude client out
+  hue pair [--ip IP]             pair with a Philips Hue bridge (press its link button when asked)
+  hue status                     rooms, zones, lights and scenes
   spotify login [--client-id ID] log in to Spotify (play anything on this PC from Claude)
   spotify status                 login, Connect devices and what's playing
   spotify logout                 forget the Spotify login
@@ -48,13 +52,16 @@ const option = (name: string) => {
     return i >= 0 ? args[i + 1] : undefined;
 };
 const dryRun = flag("--dry-run") || process.env.ARCHCLAW_DRY_RUN === "1";
-const VALUE_OPTIONS = new Set(["--name", "--percent", "--client-id"]);
+const VALUE_OPTIONS = new Set(["--name", "--percent", "--client-id", "--ip"]);
 const positional = args.filter((a, i) => !a.startsWith("--") && !(i > 0 && VALUE_OPTIONS.has(args[i - 1])));
 const [command = "serve", ...rest] = positional;
 
 const log = createLogger("archclaw");
 const spotifyStore = new SpotifyTokenStore(join(paths.state, "spotify.json"));
 const spotifyClient = new SpotifyClient(spotifyStore);
+const hueStore = new HueStore(join(paths.state, "hue.json"));
+const hue = new HueClient(hueStore);
+setHueClient(hue);
 
 /** Built-in actions, plus the ones that depend on the config (Spotify). */
 function registryFor(config?: Config) {
@@ -142,7 +149,7 @@ async function main() {
                 return;
             }
             const { startConnector } = await import("./adapters/connector/server.ts");
-            await startConnector({ store, registry, dispatcher, exec, safety, spotify: spotifyEnabled(config) ? spotifyClient : undefined, log, notifier, auth });
+            await startConnector({ store, registry, dispatcher, exec, safety, spotify: spotifyEnabled(config) ? spotifyClient : undefined, hue, log, notifier, auth });
             return;
         }
         case "init": {
@@ -191,6 +198,7 @@ async function main() {
             console.log(`password:  ${auth.hasPassword ? "set" : "not set - run `archclaw connector password`"}`);
             console.log(`claude:    ${auth.connectedClients} client(s) signed in`);
             console.log(`spotify:   ${spotifyClient.loggedIn ? "logged in" : "not logged in (optional: archclaw spotify login)"}`);
+            console.log(`hue:       ${hue.paired ? `paired with ${hueStore.load()!.ip}` : "not paired (optional: archclaw hue pair)"}`);
             console.log(`config:    ${paths.config}: ${configLine}`);
             console.log(`logs:      journalctl --user -u archclaw -f`);
             return;
@@ -248,6 +256,31 @@ async function main() {
                 loadConfig(); // validate before telling the user it worked
                 console.log(`Saved. Restart: systemctl --user restart archclaw\nIn Claude: Settings → Connectors → Add custom connector → ${url.replace(/\/+$/, "")}/mcp`);
             } else throw new Error("usage: archclaw connector password|url <https-url>|status|revoke");
+            return;
+        }
+        case "hue": {
+            const sub = rest[0] ?? "status";
+            if (sub === "pair") {
+                const { discoverBridges, pairBridge } = await import("./hue/client.ts");
+                const cap = (cmd: string) => new Promise<string>(r => r(sh("sh", ["-c", cmd])));
+                let bridges = await discoverBridges(cap);
+                const ip = option("--ip");
+                if (ip) bridges = bridges.filter(b => b.ip === ip);
+                if (!bridges.length) throw new Error(ip ? `no Hue bridge at ${ip}` : "no Hue bridge found on the network");
+                if (bridges.length > 1) throw new Error(`several bridges: ${bridges.map(b => b.ip).join(", ")}; pick one with --ip`);
+                const b = bridges[0]!;
+                console.log(`Found the Hue bridge ${b.bridgeId} at ${b.ip}.\nPress the round link button on the bridge now (within 60 s)…`);
+                const auth = await pairBridge(b.ip, b.bridgeId, sh("hostname", []) || "pc");
+                hueStore.save(auth);
+                const { summarize } = await import("./hue/control.ts");
+                const sum = summarize(await hue.state());
+                console.log(`Paired. Rooms: ${sum.rooms.map(r => r.name).join(", ") || "none"}; zones: ${sum.zones.map(z => z.name).join(", ") || "none"}.`);
+                console.log("Restart the service to give Claude the Hue tools: systemctl --user restart archclaw");
+            } else if (sub === "status") {
+                if (!hue.paired) return void console.log("not paired; run `archclaw hue pair`");
+                const { summarize } = await import("./hue/control.ts");
+                console.log(JSON.stringify(summarize(await hue.state()), null, 2));
+            } else throw new Error("usage: archclaw hue pair [--ip IP] | status");
             return;
         }
         case "spotify": {

@@ -11,6 +11,7 @@ can say, in any language, from the Claude app on your phone:
 - *"Move Spotify to the middle screen"*, *"close the browser"*, *"what's open right now?"*
 - *"Switch to the Tokyo Night theme and hide the bar"*, *"remind me in 20 minutes to take the pizza out"*,
   *"move the sound to the headset"*, *"what's on my left screen?"*
+- *"Dim the living room to 30 % and make it warm"*, *"turn on the Read scene in the bedroom"*
 - *"Lock the computer and turn the screens off"*, *"shut it down"* (with a cancellable countdown on screen).
 - *"When I say movie night, open Jellyfin on the TV screen and turn on night light"*: Claude saves
   that as a scene and remembers it.
@@ -69,6 +70,7 @@ voice mode.
 | `spotify_search`, `spotify_play` | Any track, album, artist or playlist (also your own) on this PC |
 | `omarchy_info`, `omarchy_do` | Omarchy itself: theme, wallpaper, font, text size, bar, transparency, animations, workspaces, fullscreen/float, audio output, mic, brightness, Bluetooth, power profile, reminders, notifications, screen recording, repairs (restart audio/Wi-Fi/Bluetooth/shell) |
 | `screenshot` | Lets Claude see a screen (or all of them) |
+| `hue_status`, `hue_set`, `hue_scene` | Philips Hue: rooms, zones and lights on/off, brightness, color, color temperature, fades, and Hue scenes (after `archclaw hue pair`) |
 | `find_installed_apps`, `add_app`, `remove_app` | Add programs or web apps |
 | `save_scene`, `remove_scene`, `name_screen`, `set_notes`, `undo_config_change` | Change archclaw's setup |
 
@@ -97,6 +99,7 @@ archclaw run <action>             run one locally (same safety rules)
 archclaw scene <name> start|stop  start or stop a scene
 archclaw connector password|url|status|revoke
 archclaw spotify login|status|logout
+archclaw hue pair|status
 ```
 
 Logs: `journalctl --user -u archclaw -f` and `journalctl --user -u archclaw-tunnel -f`.
@@ -112,6 +115,14 @@ Needs Spotify Premium and a free app at <https://developer.spotify.com/dashboard
 redirect URI `http://127.0.0.1:8898/callback`). Then `archclaw spotify login --client-id <ID>`.
 Claude can then play anything on this PC, and `spotify.handoff.on` moves music that starts on a
 speaker to the PC automatically.
+
+## Philips Hue
+
+`archclaw hue pair` finds the bridge on your network and asks you to press its link button. The
+key is stored in `~/.local/state/archclaw/hue.json` (0600), and the bridge's certificate is
+pinned at pairing, so nothing is sent to a different device at that address. Claude then gets
+`hue_status`, `hue_set` and `hue_scene`, and scenes can include Hue steps
+(`{ hue: Living room, brightness: 20, temperature: warm }`, `{ hueScene: Relax, room: Living room }`).
 
 ## Requirements
 

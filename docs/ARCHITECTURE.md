@@ -46,6 +46,7 @@ src/
   resolve.ts             action refs → Action: ids, { run }, { open, screen, new }, { close }, { play, screen }, lists
   core/                  action types, dispatcher/registry, safety, executor, notifier, log
   actions/               power, display, media/volume/desktop toggles, apps (open/focus/move/close via hyprctl)
+  hue/                   Philips Hue CLIP v2: discovery, link-button pairing, certificate pinning, rooms/zones/lights/scenes
   spotify/               PKCE login, Web API client (player, search, playlists), spotify.here, handoff loop
   adapters/connector/
     server.ts            express app: OAuth router, consent route, bearer-protected /mcp

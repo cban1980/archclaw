@@ -81,6 +81,8 @@ Steps:
 | `{ close: app }` | closes every window of the app |
 | `{ play: spotify, screen: right }` | resumes music, or opens the player there and starts playback |
 | `{ terminal: lazygit, dir: ~/Work/app, screen: left }` | a terminal running a program in a folder (`terminal: shell` for a plain shell; `ssh: host` for ssh) |
+| `{ hue: Living room, brightness: 30, temperature: warm, fade: 2 }` | Philips Hue: a room, zone, light or `all`; `on`, `brightness` (0 = off), `color` (name or #rrggbb), `temperature` (K or warm/neutral/cool/daylight), `fade` (s) |
+| `{ hueScene: Relax, room: Living room }` | recall a Hue scene |
 | `{ omarchy: theme.set, value: Tokyo Night }` | an Omarchy operation (the list is in `src/omarchy.ts`; Claude sees it in `omarchy_do`) |
 | `{ run: "shell command" }` | anything; **hand edits only** (Claude can't add these) |
 

@@ -24,6 +24,19 @@ const singleRef = z.union([
             screen: z.string().min(1).optional(),
         })
         .strict(),
+    /** Philips Hue: a room, zone, light or "all", with what to change. */
+    z
+        .object({
+            hue: z.string().min(1),
+            on: z.boolean().optional(),
+            brightness: z.number().min(0).max(100).optional(),
+            color: z.string().min(1).optional(),
+            temperature: z.union([z.string().min(1), z.number()]).optional(),
+            fade: z.number().min(0).max(60).optional(),
+        })
+        .strict(),
+    /** Philips Hue: recall a scene, optionally in a room or zone. */
+    z.object({ hueScene: z.string().min(1), room: z.string().min(1).optional() }).strict(),
     /** An Omarchy operation (see omarchy.ts), e.g. { omarchy: theme.set, value: Tokyo Night }. */
     z.object({ omarchy: z.string().min(1), value: z.string().optional() }).strict(),
 ]);

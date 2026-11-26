@@ -4,6 +4,7 @@ import type { Action } from "./core/action.ts";
 import type { Registry } from "./core/dispatcher.ts";
 import { OMARCHY_OPS, omarchyCommand } from "./omarchy.ts";
 import { terminalAction } from "./terminal.ts";
+import { applyChange, hueClient, recallScene } from "./hue/control.ts";
 
 /** Turns a config action reference into a runnable Action. Throws on unknown ids or apps. */
 export function resolveRef(ref: ActionRef, registry: Registry, config: Pick<Config, "apps" | "screens"> & Partial<Pick<Config, "terminalPrograms">>): Action {
@@ -38,6 +39,23 @@ export function resolveRef(ref: ActionRef, registry: Registry, config: Pick<Conf
         return playApp(ref.play, app, { monitor });
     }
     if (typeof ref === "object" && "omarchy" in ref) return omarchyAction(ref.omarchy, ref.value);
+    if (typeof ref === "object" && "hue" in ref) {
+        const { hue, fade, ...change } = ref;
+        return {
+            id: `hue:${hue}`,
+            title: `Hue ${hue}`,
+            risk: "safe",
+            run: async ctx => ctx.log.info(`hue: ${await applyChange(hueClient(), hue, { ...change, fadeSeconds: fade })}`),
+        };
+    }
+    if (typeof ref === "object" && "hueScene" in ref) {
+        return {
+            id: `hue-scene:${ref.hueScene}`,
+            title: `Hue scene ${ref.hueScene}`,
+            risk: "safe",
+            run: async ctx => ctx.log.info(`hue: ${await recallScene(hueClient(), ref.hueScene, ref.room)}`),
+        };
+    }
     if (typeof ref === "object" && "terminal" in ref) {
         const monitor = ref.screen ? (config.screens[ref.screen] ?? ref.screen) : undefined;
         const req = { program: ref.terminal === "shell" ? undefined : ref.terminal, ssh: ref.ssh, dir: ref.dir, monitor };

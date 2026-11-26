@@ -13,6 +13,8 @@ import { INFO_TOPICS, OMARCHY_OPS, omarchyCommand, omarchyInfo, screenshot } fro
 import { monitors } from "../../actions/apps.ts";
 import { availablePrograms, sshHosts, terminalAction } from "../../terminal.ts";
 import type { SpotifyClient } from "../../spotify/client.ts";
+import type { HueClient } from "../../hue/client.ts";
+import { applyChange, recallScene, summarize } from "../../hue/control.ts";
 import { playUriHere } from "../../spotify/actions.ts";
 import { computerStatus } from "../../status.ts";
 
@@ -23,6 +25,7 @@ export type ToolDeps = {
     exec: Executor;
     safety: Pick<Safety, "pending">;
     spotify?: SpotifyClient;
+    hue?: HueClient;
 };
 
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
@@ -63,6 +66,17 @@ const step = z.union([
     z.object({ play: z.string().describe("App key of a music player, e.g. spotify"), screen: z.string().optional() }).strict(),
     z.object({ action: z.string().describe("Built-in action id from list_capabilities, e.g. display.off, volume.mute, power.lock") }).strict(),
     z.object({ omarchy: z.string().describe("Operation from omarchy_do, e.g. theme.set, bar, animations"), value: z.string().optional() }).strict(),
+    z
+        .object({
+            hue: z.string().describe("Hue room, zone, light or 'all'"),
+            on: z.boolean().optional(),
+            brightness: z.number().min(0).max(100).optional(),
+            color: z.string().optional(),
+            temperature: z.union([z.string(), z.number()]).optional(),
+            fade: z.number().min(0).max(60).optional(),
+        })
+        .strict(),
+    z.object({ hueScene: z.string().describe("Hue scene name"), room: z.string().optional() }).strict(),
     z
         .object({
             terminal: z.string().describe("Program from list_capabilities terminal.programs, or 'shell'"),
@@ -377,6 +391,69 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
         },
     );
 
+    // ── Philips Hue ──────────────────────────────────────────────────────────
+
+    const hue = deps.hue;
+    if (hue?.paired) {
+        server.registerTool(
+            "hue_status",
+            {
+                title: "Hue lights",
+                description: "Philips Hue rooms and zones with their lights (on, brightness) and scenes.",
+                annotations: { readOnlyHint: true, openWorldHint: false },
+            },
+            async () => {
+                try {
+                    return json(summarize(await hue.state()));
+                } catch (err) {
+                    return fail((err as Error).message);
+                }
+            },
+        );
+        server.registerTool(
+            "hue_set",
+            {
+                title: "Change Hue lights",
+                description:
+                    "Changes a Hue room, zone, light, or 'all' (names match loosely, any language): on/off, brightness 0-100 " +
+                    "(0 = off), color (red, blue, warm white… or #rrggbb), temperature (2000-6500 K or warm/neutral/cool/daylight), " +
+                    "fade in seconds.",
+                inputSchema: {
+                    target: z.string(),
+                    on: z.boolean().optional(),
+                    brightness: z.number().min(0).max(100).optional(),
+                    color: z.string().optional(),
+                    temperature: z.union([z.string(), z.number()]).optional(),
+                    fade_seconds: z.number().min(0).max(60).optional(),
+                },
+                annotations: { destructiveHint: false, openWorldHint: false },
+            },
+            async ({ target, fade_seconds, ...change }) => {
+                try {
+                    return text(await applyChange(hue, target, { ...change, fadeSeconds: fade_seconds }));
+                } catch (err) {
+                    return fail((err as Error).message);
+                }
+            },
+        );
+        server.registerTool(
+            "hue_scene",
+            {
+                title: "Hue scene",
+                description: "Recalls a Hue scene by name (from hue_status), optionally in a given room or zone.",
+                inputSchema: { scene: z.string(), room: z.string().optional() },
+                annotations: { destructiveHint: false, openWorldHint: false },
+            },
+            async ({ scene, room }) => {
+                try {
+                    return text(await recallScene(hue, scene, room));
+                } catch (err) {
+                    return fail((err as Error).message);
+                }
+            },
+        );
+    }
+
     // ── Omarchy ──────────────────────────────────────────────────────────────
 
     const ops = Object.keys(OMARCHY_OPS) as [string, ...string[]];
@@ -501,7 +578,8 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
             description:
                 "Creates or replaces a named setup the user can start and stop by name. Steps run in order: " +
                 "{open: app, screen?}, {close: app}, {play: app, screen?}, {action: id}, {omarchy: operation, value?}, " +
-                "{terminal: program|'shell', ssh?, dir?, screen?} " +
+                "{terminal: program|'shell', ssh?, dir?, screen?}, {hue: room|zone|light|'all', on?, brightness?, color?, temperature?, fade?}, " +
+                "{hueScene: name, room?} " +
                 "(any omarchy_do operation, e.g. theme.set). Without stop steps, stopping " +
                 "closes every app the scene opens. Put the words the user says for it in aliases (any language). " +
                 "Power actions can't be in scenes.",
