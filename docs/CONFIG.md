@@ -1,228 +1,132 @@
 # Configuration reference
 
-archnest reads `~/.config/archnest/config.yaml` (override it with `ARCHNEST_CONFIG`).
+archclaw reads `~/.config/archclaw/config.yaml` (override with `ARCHCLAW_CONFIG`). `archclaw init`
+(or the installer) writes it from [`config.example.yaml`](../config.example.yaml).
 
-- **Create it:** `archnest init` (or the installer) writes it from a preset, filled in with your
-  monitors, default browser and terminal, and a random pairing code.
-- **After every edit:**
-  ```sh
-  archnest check                        # validates everything, with clear errors
-  systemctl --user restart archnest     # applies it
-  archnest routines --copy              # only if you changed phrases → paste into Google Home
-  ```
-- **New devices** appear in Google Home within a minute. Put each one in your archnest room
-  (see [`room`](#top-level)), or Gemini answers "set up your devices in the Google Home app".
-
-Presets: [`config.example.yaml`](../config.example.yaml) (English) and
-[`presets/sv.yaml`](../presets/sv.yaml) (Swedish). Both are full, commented examples.
+Claude edits most of it for you through its tools. Hand edits apply as soon as you save; if the
+file is invalid, archclaw keeps the last good version and shows a notification. `archclaw check`
+validates.
 
 ## Top level
 
 | Key | Default | Meaning |
 |---|---|---|
-| `name` | `archnest` | The bridge's own name in Google Home. It must differ from every device name, or Google shows one of them as "Name (2)". |
-| `room` | `Desk` | The Google Home room you put all archnest devices in. Routines refer to devices as `<device> - <room>`. Use a room of its own, so room-wide commands ("turn off the living room lights") don't hit the screens or the volume. |
-| `screens` | `{}` | Friendly names → Hyprland monitor names (`hyprctl monitors`), e.g. `left: HDMI-A-1`. Used by `screen:` in actions. |
-| `apps` | `{}` | Apps archnest can open, close and play: see [Apps](#apps). |
-| `devices` | (required) | What Google Home sees: see [Devices](#devices). |
-| `routines` | `[]` | Phrases that switch several devices at once: see [Phrases and routines](#phrases-and-routines). |
-| `matter` | | `port` (5540), `passcode`, `discriminator`. `init` randomises the last two; change them only before pairing. |
-| `safety` | | `countdownSeconds` (30), `bootGraceSeconds` (120), `repeatWindowSeconds` (60): see [Safety](#safety). |
+| `name` | `archclaw` | What Claude and the sign-in page call this computer. |
+| `notes` | `""` | Free text Claude reads in every conversation: your language, the words you use, habits. Claude can update it (`set_notes`). |
+| `screens` | `{}` | Friendly names → Hyprland monitor names (`hyprctl monitors`), e.g. `left: HDMI-A-1`. |
+| `apps` | `{}` | See [Apps](#apps). |
+| `scenes` | `[]` | See [Scenes](#scenes). |
+| `connector` | | `port` (8765, localhost only) and `publicUrl` (your tunnel's https address). |
 | `spotify` | | See [Spotify](#spotify). |
-| `connector` | off | The optional Claude connector (`enabled`, `port`, `publicUrl`). |
-
-## Devices
-
-```yaml
-devices:
-  - name: Screens            # what you say; also the Google Home name
-    type: light              # plug | light | dimmer | lock | momentary
-    on: display.on           # action(s) when switched on
-    off: display.off         # action(s) when switched off
-    initial: true            # state shown at startup, until the probe says otherwise
-    probe: "hyprctl monitors -j | jq -e 'all(.[]; .dpmsStatus)'"   # exit 0 = on
-    phrases:                 # optional extra phrases → `archnest routines`
-      on: ["wake up the screens"]
-      off: ["screens off please"]
-```
-
-### Renaming a device
-
-To Google Home, a renamed device is a **new device**. It arrives without a room, so voice
-commands answer "set up your devices in the Google Home app", and the old name lingers offline.
-After a rename:
-
-1. Restart: `systemctl --user restart archnest`. archnest notifies you which devices are new and
-   which are gone.
-2. In the Google Home app, put the new device in your room, and remove the old one if it's
-   still listed.
-3. Run `archnest routines --copy` and paste it over your script in the script editor.
-
-Choose names Gemini hears reliably: real words in your assistant's language
-(e.g. *Arbetsläge*, *Fritidsläge*) work much better than made-up words or English words in a
-Swedish sentence.
-
-### Types
-
-Gemini understands each type natively, so these work without any routine:
-
-| Type | Gemini hears it as | Say | Notes |
-|---|---|---|---|
-| `plug` | an outlet | "turn on/off X" | stays on/off; the usual choice |
-| `light` | a light | "turn on/off X" | also included in "turn off all the lights"; keep the room separate |
-| `dimmer` | a dimmable light | "set X to 30 percent", "turn off X" | needs `level` (an action that takes a percent, e.g. `volume.set`) and optionally `levelProbe` (prints 0–100) |
-| `lock` | a door lock | "lock X" | runs `on` when locked; **remote unlock is always refused**; only `on` |
-| `momentary` | an outlet that flips back off | via routines ("shut down the computer") | a button: runs `on`, then resets. Required for power actions; only `on` |
-
-### State (`probe`)
-
-- **What it is:** a shell command polled every 5 s. Exit 0 means on (or locked).
-- **Why:** with it, Google Home shows the real state, and "turn off X" works even when you changed
-  it on the PC.
-- **Without one:** devices that `open` an app track whether the app is running; others keep the
-  last state Google set.
-
-Useful probes:
-
-```yaml
-probe: omarchy-hyprland-session-locked                                  # screen locked
-probe: playerctl -a status 2>/dev/null | grep -qx Playing                # music playing
-probe: hyprctl clients -j | jq -e 'any(.[]; .class == "discord")' >/dev/null   # a window exists
-probe: systemctl --user is-active --quiet syncthing                     # a service runs
-probe: test "$(omarchy-shell notifications isDnd)" = on                  # do not disturb
-```
-
-## Actions
-
-`on`, `off` and routine steps take an **action**, or a **list of actions** run in order (a scene):
-
-| Form | Does |
-|---|---|
-| `display.off` | a built-in action (table below) |
-| `{ run: "notify-send hi" }` | any shell command, run in your session |
-| `{ open: browser, screen: left }` | opens an app, or focuses it if it's already open, and moves it to that screen |
-| `{ open: terminal, screen: middle, new: true }` | always opens a new window |
-| `{ close: spotify }` | closes every window of the app |
-| `{ play: spotify, screen: right }` | plays music in the app (MPRIS): resumes it, or opens it on that screen and starts playback |
-| `[a, b, c]` | a scene: runs them in order; one failing step doesn't stop the rest |
-
-`screen:` takes a name from `screens` or a monitor name. On a missing monitor, the app opens
-where it is.
-
-### Built-in actions
-
-| Id | Does | Needs |
-|---|---|---|
-| `power.shutdown`, `power.reboot`, `power.suspend`, `power.logout` | power, with [safety](#safety) | momentary device; systemd/logind (Omarchy's scripts if present) |
-| `power.lock` | lock the screen | `omarchy-system-lock`, else `loginctl lock-session` |
-| `power.cancel` | cancel a pending power action | |
-| `display.on`, `display.off` | DPMS | Hyprland |
-| `media.play`, `media.pause`, `media.playpause`, `media.next`, `media.previous` | media keys for any MPRIS player (`pause` pauses all) | `playerctl` |
-| `volume.set` (percent), `volume.mute`, `volume.unmute` | output volume | `pactl` (PipeWire/Pulse) |
-| `dnd.on`, `dnd.off` | do not disturb | Omarchy |
-| `nightlight.on`, `nightlight.off` | night light | Omarchy |
-| `awake.on`, `awake.off` | keep the PC awake (idle inhibitor) | Omarchy |
-| `spotify.here` | play Spotify on this PC: take over from the Nest if it's playing there, else start/resume locally | an `apps` entry for Spotify; the takeover needs `archnest spotify login` |
-| `spotify.handoff.on`, `spotify.handoff.off` | handoff mode: Spotify started on a speaker moves here | `archnest spotify login` |
-
-`archnest list` prints the current list. `archnest run <id>` tries one, with the same safety rules.
+| `safety` | | `countdownSeconds` (30), `bootGraceSeconds` (120). See [Safety](#safety). |
 
 ## Apps
 
 ```yaml
 apps:
-  browser:
-    launch: omarchy-launch-browser          # command that starts it
-    match: microsoft-edge                   # whole word, case-insensitive, in window class or title
   discord:
-    launch: omarchy-launch-webapp https://discord.com/channels/@me
-    match: discord
-  work-pc:
-    launch: remmina -c ~/.local/share/remmina/work.remmina
-    match: work                             # RDP windows are titled with the connection name
+    launch: omarchy-launch-webapp 'https://discord.com/channels/@me'
+    match: discord                    # a word in the window class or title
+    description: chat with friends    # helps Claude pick the right one
   spotify:
     launch: omarchy-launch-spotify
     match: spotify
-    player: spotify                         # MPRIS name for `play` (`playerctl -l`); defaults to the key
+    player: spotify                   # MPRIS name for { play: … } (`playerctl -l`); defaults to the key
+  work-pc:
+    launch: remmina -c ~/.local/share/remmina/work.remmina
+    match: work                       # RDP windows are titled with the connection name
 ```
 
-Remmina asks "Are you sure you want to close?" when a window closes. To make `close` work
-hands-free, set `confirm_close=false` in `~/.config/remmina/remmina.pref` while Remmina isn't running.
+- **Claude adds apps** with `add_app` from an installed desktop entry (`uwsm-app -- <id>.desktop`)
+  or as a web app (`omarchy-launch-webapp '<https url>'`). It can't write other commands, and it
+  won't change apps you set up with a custom `launch`.
+- **To find `match`**, open the app and run `hyprctl clients -j | jq -r '.[] | "\(.class)  \(.title)"'`.
+  For terminal apps, give them their own app id: `omarchy-launch-tui --app-id=org.omarchy.myapp <cmd>`,
+  then `match: myapp`.
 
-To find `match`, open the app and run `hyprctl clients -j | jq -r '.[] | "\(.class)  \(.title)"'`.
-For terminal apps, give them their own app id so they can be told apart:
-`omarchy-launch-tui --app-id=org.omarchy.myapp <command>`, then use `match: myapp`.
-
-## Phrases and routines
-
-Gemini never passes your words to archnest, only device commands. For anything other than
-"turn on/off X", add phrases. They become a Google Home **household routine**:
+## Scenes
 
 ```yaml
-devices:
-  - name: Work mode
-    type: plug
-    on: { open: work-pc, screen: main }
-    off: { close: work-pc }
-    phrases:
-      on: ["time to work", "start work mode"]
-      off: ["done with work"]
-
-routines:                                   # several devices from one phrase
-  - phrases: ["i'm done with the computer"]
-    actions:
-      - Spotify app: false                  # device name: true (on/lock) or false (off)
-      - Computer: true
-      - Screens: false
+scenes:
+  - name: mirc
+    aliases: [chattläge, chat mode]    # any words, any language; matching ignores case and accents
+    description: Discord and archflux left, Edge middle, Spotify right
+    start:
+      - { open: discord, screen: left }
+      - { open: archflux, screen: left }
+      - { open: edge, screen: middle }
+      - { open: spotify, screen: right }
+    stop:
+      - { close: discord }
+      - { close: archflux }
+    probe: hyprctl clients -j | jq -e 'any(.[]; .class == "org.omarchy.archflux")' >/dev/null
 ```
 
-Then:
+| Key | Meaning |
+|---|---|
+| `name`, `aliases` | What you call it. Names and aliases must be unique across scenes. |
+| `description` | What it does, for Claude. |
+| `start`, `stop` | Steps, run in order; one failing step doesn't stop the rest. Without `stop`, there's nothing to stop. |
+| `probe` | Shell command; exit 0 = the scene is active (shown in `get_status`). Default: the first app it opens is running. |
 
-1. Run `archnest routines --copy`.
-2. Go to <https://home.google.com> → **Automations** → open your archnest script, or **Add new →
-   Script editor** the first time.
-3. Select all, paste, then **Validate**, **Save** and **Activate**. Warnings that switches "could
-   impact the safety…" are normal.
+Steps:
 
-Tips:
+| Step | Does |
+|---|---|
+| `display.off` | a built-in action (`archclaw list`) |
+| `{ open: app, screen: left }` | opens the app, or focuses it if open, and moves it to that screen |
+| `{ open: terminal, new: true }` | always a new window |
+| `{ close: app }` | closes every window of the app |
+| `{ play: spotify, screen: right }` | resumes music, or opens the player there and starts playback |
+| `{ run: "shell command" }` | anything; **hand edits only** (Claude can't add these) |
 
-- **Pick words Gemini hears reliably.** A made-up word may be heard as something else; real words
-  or short names work best.
-- **Avoid phrases Google handles itself.** For example, "play …" is music and "set an alarm" is
-  an alarm.
-- **Matching is exact.** Phrases are lower-cased and must match what you say.
+Power actions can't be in scenes. When Claude saves a scene without stop steps, stopping closes
+the apps it opens.
+
+## Built-in actions
+
+| Id | Does | Needs |
+|---|---|---|
+| `power.shutdown`, `power.reboot`, `power.suspend`, `power.logout` | power, after a countdown | systemd/logind (Omarchy's scripts if present) |
+| `power.lock` | lock the screen | `omarchy-system-lock`, else `loginctl lock-session` |
+| `power.cancel` | cancel a pending power action | |
+| `display.on`, `display.off` | DPMS | Hyprland |
+| `media.play`, `media.pause`, `media.playpause`, `media.next`, `media.previous` | any MPRIS player (`pause` pauses all) | `playerctl` |
+| `volume.set` (percent), `volume.mute`, `volume.unmute` | output volume | `pactl` |
+| `dnd.on`, `dnd.off`, `nightlight.on`, `nightlight.off`, `awake.on`, `awake.off` | desktop toggles | Omarchy |
+| `spotify.here` | move Spotify playback here, or start/resume it | Spotify login |
+| `spotify.handoff.on`, `spotify.handoff.off` | keep moving music that starts on a speaker to this PC | Spotify login |
 
 ## Spotify
 
 ```yaml
 spotify:
-  clientId: …                  # set by `archnest spotify login --client-id …`
+  clientId: …                  # set by `archclaw spotify login --client-id …`
   app: spotify                 # key in `apps` to start when this PC isn't a Connect device yet
   screen: right                # where it opens
   device: my-pc                # this PC's name in Spotify Connect (default: hostname)
-  handoffFrom: [Kitchen]       # devices handoff mode moves from (default: speakers/TVs, never phones or computers)
+  handoffFrom: [Kitchen]       # handoff moves from these (default: speakers/TVs, never phones or computers)
 ```
-
-It needs Spotify Premium and a free app at developer.spotify.com. See
-[README → Spotify](../README.md#spotify-play-x-from-the-nest-on-the-pc).
 
 ## Safety
 
 | Rule | Setting |
 |---|---|
-| Power actions (`power.shutdown/reboot/suspend/logout`) only on `momentary` devices, never in scenes | always |
-| From Google Home, the same power command must arrive twice, at least 3 s apart | `repeatWindowSeconds` (0 turns it off) |
-| A notification counts down with a **Cancel** button before power actions run | `countdownSeconds` |
-| Power commands are ignored right after boot | `bootGraceSeconds` |
-| Locks never unlock remotely | always |
+| Shutdown, reboot, sleep and logout show a notification with **Cancel** first | `countdownSeconds` |
+| …and are refused right after boot | `bootGraceSeconds` |
+| Power actions can't be in scenes | always |
+| No remote unlock | always |
+| Claude can't add shell commands (apps or scenes) | always |
 
-## What needs Omarchy
+## The connector
 
-archnest targets [Omarchy](https://omarchy.org). On plain Arch + Hyprland, most of it works:
+```sh
+archclaw connector password            # the owner password (signs every client out)
+archclaw connector url https://pc.example.com
+archclaw connector status              # address, password, signed-in clients
+archclaw connector revoke              # sign every Claude client out
+```
 
-| Works on Arch + Hyprland | Needs Omarchy (or your own `{ run: … }` replacement) |
-|---|---|
-| Matter bridge, all device types, probes, routines | `dnd.*`, `nightlight.*`, `awake.*` |
-| power, lock (logind fallbacks) | `omarchy-launch-*` in the preset apps (replace `launch:` with your own commands) |
-| screens, volume, media, apps on screens, scenes, shell commands | the preset probes that call `omarchy-*` |
-| Spotify handoff, Claude connector | |
+The connector needs a public https address that forwards to `127.0.0.1:<port>`. The installer
+sets up a Cloudflare Tunnel (`~/.cloudflared/archclaw.yml`, service `archclaw-tunnel`); any other
+reverse proxy or tunnel works too, as long as it passes the original `Host` header.

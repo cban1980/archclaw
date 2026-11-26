@@ -17,11 +17,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      - name: Presets are valid and produce routines
-        run: |
-          for f in config.example.yaml presets/sv.yaml; do
-            ARCHNEST_CONFIG=$f node src/cli.ts check
-            ARCHNEST_CONFIG=$f node src/cli.ts routines > /dev/null
-          done
+      - name: Example config is valid
+        run: ARCHCLAW_CONFIG=config.example.yaml node src/cli.ts check
       - name: Installer parses
         run: bash -n bootstrap.sh

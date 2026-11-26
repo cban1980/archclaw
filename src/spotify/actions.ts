@@ -25,10 +25,10 @@ export function spotifyEnabled(config: Config) {
 
 /**
  * Spotify Connect glue:
- * - `spotify.here`: plays on this PC. If Spotify is playing on another device (e.g. the
- *   Nest), playback moves here; otherwise the local app is started/resumed.
- * - `spotify.handoff.on|off`: while on, playback that starts on a speaker (the Nest)
- *   is moved to this PC automatically, so "Hey Google, play X on Spotify" ends up here.
+ * - `spotify.here`: plays on this PC. If Spotify is playing on another device (e.g. a
+ *   speaker), playback moves here; otherwise the local app is started/resumed.
+ * - `spotify.handoff.on|off`: while on, playback that starts on a speaker is moved to
+ *   this PC automatically.
  */
 export function spotifyActions({ config, client, statePath }: Deps): Action[] {
     const appName = config.spotify.app;
@@ -65,7 +65,7 @@ export function spotifyActions({ config, client, statePath }: Deps): Action[] {
             if (on) {
                 mkdirSync(dirname(flag), { recursive: true });
                 writeFileSync(flag, "");
-                if (!client.loggedIn) log.warn("spotify handoff is on, but archnest isn't logged in: run `archnest spotify login`");
+                if (!client.loggedIn) log.warn("spotify handoff is on, but archclaw isn't logged in: run `archclaw spotify login`");
             } else rmSync(flag, { force: true });
         },
     });
@@ -84,9 +84,9 @@ export function shouldHandOff(d: Pick<SpotifyDevice, "name" | "type">, config: P
     return !PERSONAL_TYPES.has(d.type.toLowerCase());
 }
 
-/** Transfers playback to this PC, starting the Spotify app first if it isn't a Connect device yet. */
-async function moveHere(ctx: ActionContext, { config, client }: Pick<Deps, "config" | "client">, why: string) {
-    const find = async () => (await client.devices()).find(d => d.id && isThisPc(d, config));
+/** This PC as a Spotify Connect device, starting the Spotify app first if it isn't one yet. */
+export async function ensureDevice(ctx: ActionContext, { config, client }: Pick<Deps, "config" | "client">): Promise<SpotifyDevice & { id: string }> {
+    const find = async () => (await client.devices()).find(d => d.id && isThisPc(d, config)) as (SpotifyDevice & { id: string }) | undefined;
     let pc = await find();
     if (!pc) {
         const app = config.apps[config.spotify.app];
@@ -105,8 +105,22 @@ async function moveHere(ctx: ActionContext, { config, client }: Pick<Deps, "conf
             await sleep(1000);
         }
     }
-    await client.transfer(pc.id!, true);
+    return pc;
+}
+
+/** Transfers playback to this PC. */
+async function moveHere(ctx: ActionContext, deps: Pick<Deps, "config" | "client">, why: string) {
+    const pc = await ensureDevice(ctx, deps);
+    await deps.client.transfer(pc.id, true);
     ctx.log.info(`spotify: moved playback ${why} to ${pc.name}`);
+}
+
+/** Plays a Spotify URI (track, album, playlist or artist) on this PC. */
+export async function playUriHere(ctx: ActionContext, deps: Pick<Deps, "config" | "client">, uri: string) {
+    const pc = await ensureDevice(ctx, deps);
+    const what = uri.startsWith("spotify:track:") ? { uris: [uri] } : { context_uri: uri };
+    await deps.client.play(pc.id, what);
+    ctx.log.info(`spotify: playing ${uri} on ${pc.name}`);
 }
 
 /** Background loop for handoff mode. Polls only while the mode flag exists. */
@@ -121,7 +135,7 @@ export function startHandoff(deps: Deps & { ctx: ActionContext; log: Logger }) {
     const tick = async () => {
         if (busy || Date.now() < pausedUntil || !existsSync(flag)) return;
         if (!client.loggedIn) {
-            if (warned !== "login") log.warn("spotify handoff is on, but archnest isn't logged in: run `archnest spotify login`");
+            if (warned !== "login") log.warn("spotify handoff is on, but archclaw isn't logged in: run `archclaw spotify login`");
             warned = "login";
             return;
         }

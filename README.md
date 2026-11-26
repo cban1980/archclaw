@@ -1,206 +1,126 @@
-# archnest
+# archclaw
 
-Control your Arch/Omarchy PC by voice with Google Home and Nest speakers.
+**Let Claude run your Arch/Omarchy desktop from your phone.**
 
-archnest runs as a systemd user service and shows up in Google Home as a **Matter bridge**.
-Its devices are types that Gemini already understands, so most commands work without any
-setup in Google:
+archclaw is a small server on your PC that the Claude apps connect to as a
+[custom connector](https://support.claude.com/en/articles/11175166) (a remote MCP server). Then you
+can say, in any language, from the Claude app on your phone:
 
-> "Hey Google, lock the computer" · "turn off the screens" · "set computer volume to 30 percent" ·
-> "time to work" (browser left, terminal in the middle, Spotify right) ·
-> "play The Weeknd on Spotify" → it plays on the PC · "shut down the computer"
+- *"Start mirc"*: Discord and a terminal on the left screen, Edge in the middle, Spotify on the right.
+- *"Play Daft Punk's Discovery on the computer"*, *"skip this song"*, *"volume to 30"*.
+- *"Move Spotify to the middle screen"*, *"close the browser"*, *"what's open right now?"*
+- *"Lock the computer and turn the screens off"*, *"shut it down"* (with a cancellable countdown on screen).
+- *"When I say movie night, open Jellyfin on the TV screen and turn on night light"*: Claude saves
+  that as a scene and remembers it.
 
-Everything runs on your LAN, with no cloud service and no port forwarding. Device names
-come in English or Swedish, and you can add your own devices, apps, scenes and phrases.
+Claude also manages archclaw's own setup: it adds apps, saves scenes with the words you use for
+them, names your screens and keeps notes about your habits. You rarely edit the config by hand.
 
-**Requirements:** Arch Linux with [Omarchy](https://omarchy.org) (Hyprland) · Node ≥ 22.18 ·
-a Google Home/Nest speaker or display (a Matter controller) · the Google Home app.
-Plain Arch + Hyprland works too, except a few Omarchy toggles; see
-[what needs Omarchy](docs/CONFIG.md#what-needs-omarchy).
+## How it works
+
+```
+Claude app (phone, desktop, web)
+        │  MCP over https, OAuth with your owner password
+        ▼
+Cloudflare Tunnel (https://pc.example.com)  ──►  archclaw on 127.0.0.1:8765
+                                                    │  Hyprland, PipeWire, playerctl,
+                                                    │  Omarchy scripts, Spotify Web API
+                                                    ▼
+                                                 your desktop
+```
+
+archclaw listens only on localhost. The tunnel gives Claude's cloud a way in without opening a
+port, and archclaw's own OAuth server only lets in Claude, after you approve it with your password.
 
 ## Install
 
+On Arch/Omarchy, with a domain on Cloudflare (the free plan is fine):
+
 ```sh
-git clone https://github.com/cban1980/archnest ~/.local/share/archnest
-cd ~/.local/share/archnest
+git clone https://github.com/cban1980/archclaw.git ~/Work/archclaw
+cd ~/Work/archclaw
 ./bootstrap.sh
 ```
 
-The installer is interactive and safe to re-run. It:
+The installer:
+1. installs what's missing (`nodejs`, `cloudflared`, `playerctl`, `jq`, `gum`, …);
+2. writes `~/.config/archclaw/config.yaml` from your monitors and default apps;
+3. asks for an **owner password** (you type it once, when you connect Claude);
+4. creates a **Cloudflare Tunnel** to a hostname you pick, e.g. `pc.example.com`;
+5. starts two user services: `archclaw` (with your desktop session) and `archclaw-tunnel`;
+6. optionally logs in to **Spotify**.
 
-1. checks the system and installs what's missing (`gum qrencode jq playerctl libpulse wl-clipboard`)
-2. creates `~/.config/archnest/config.yaml` from your monitors, default browser and
-   terminal, with a random pairing code. You choose English or Swedish device names.
-3. opens mDNS (5353/udp) and Matter (5540/udp) in ufw, if ufw is active
-4. installs and starts `archnest.service` and the `archnest` command
-5. shows the pairing QR code, then walks you through rooms, voice phrases, Spotify and
-   (optionally) the Claude connector
+Then connect Claude: **claude.ai → Settings → Connectors → Add custom connector**, URL
+`https://pc.example.com/mcp`, and sign in with the owner password. The connector is then
+available in the Claude apps on your phone as well; switch it on in a chat's **+** menu, or use
+voice mode.
 
-`./bootstrap.sh --uninstall` removes the service and the command, and keeps your config and pairing.
+## What Claude can do
 
-## Set up Google Home (once)
-
-archnest is an uncertified Matter device, so Google needs to know about it first.
-
-1. **Register a test product:** at <https://console.home.google.com>, create a project and choose
-   **Matter → Add integration** with **Test VID `0xFFF1`** and **Product ID `0x8000`**. Use the same
-   Google account as the Home app.
-2. **Pair:** in the Google Home app, choose **+ → Add device → Matter-enabled device**, scan the
-   QR code from `archnest pair`, and pick **Set up anyway** at the "uncertified" warning. Use the
-   QR code; the generic "search for devices" only finds Cast devices.
-3. **Put every archnest device in a room.** Use one room for all of them, e.g. *Desk*
-   (*Datorhörnan* in the Swedish preset); `room:` in the config says which. Do it in the app:
-   device → settings → Room → add a custom room.
-   - Until a device has a room, Gemini answers *"configure your devices in Google Home"*.
-   - A room of their own keeps "turn off the lights in the living room" from switching off
-     your screens or muting the PC.
-4. **Add the voice phrases:**
-   1. Run `archnest routines --copy`.
-   2. Go to <https://home.google.com> → **Automations → Add new → Script editor**.
-   3. Paste, then click **Validate** (warnings about switches are normal), **Save** and **Activate**.
-
-   Run it again and replace the script whenever you change phrases in the config.
-
-## What you can say
-
-The English preset is shown; the Swedish one has the same devices (*Datorn*, *Skärmarna*,
-*Datorns volym*, *Arbetsläge*, …).
-
-| Device (type) | Say | Does |
-|---|---|---|
-| **Computer** (lock) | "lock the computer" | locks the screen; shows the real lock state; **remote unlock is always refused** |
-| **Screens** (light) | "turn off/on the screens" | DPMS off/on |
-| **Computer volume** (dimmer) | "set computer volume to 30 percent", "mute the computer" | output volume; on/off = unmute/mute |
-| **Computer music** (plug) | "play/pause the music on the computer" | plays Spotify here (takes over from the Nest, or starts Spotify); off pauses everything |
-| **Music to computer** (plug) | "turn on music to computer" | while on, Spotify you start on the Nest moves to the PC |
-| **Next / Previous track on computer** | "next song on the computer" | `playerctl next/previous` |
-| **Do not disturb**, **Night light**, **Keep computer awake** | "turn on do not disturb" | Omarchy's toggles, with live state |
-| **Spotify app** (plug) | "open/close spotify on the computer" | on the right-hand screen |
-| **Browser**, **New terminal** | "open the browser", "open a terminal" | left and middle screen |
-| **Work mode** (scene) | "time to work" | all three at once, each on its own screen |
-| **Computer shutdown / restart / sleep** | "shut down the computer" | see [Safety](#safety) |
-| **Cancel shutdown** | "cancel the shutdown" | cancels a pending power action |
-| (routine) | "I'm done with the computer" | closes Spotify, locks, turns off the screens |
-
-Phrases with "on the computer" come from routines (step 4); the rest work directly.
-
-## Make it yours
-
-Everything lives in `~/.config/archnest/config.yaml`. After editing, run `archnest check`, then
-`systemctl --user restart archnest`.
-
-```yaml
-apps:
-  discord:
-    launch: omarchy-launch-webapp https://discord.com/channels/@me
-    match: discord                      # window class or title (whole word)
-
-devices:
-  - name: Gaming mode                   # what you say: "turn on gaming mode"
-    type: plug                          # plug, light, dimmer, lock, momentary (button)
-    on:                                 # a list runs in order (a scene)
-      - { open: discord, screen: left }
-      - { play: spotify, screen: right }  # start Spotify there and play
-      - dnd.on
-    off:
-      - { close: discord }
-      - dnd.off
-    probe: hyprctl clients -j | jq -e 'any(.[]; .class | test("discord"))' >/dev/null
-    phrases:                            # extra phrases → `archnest routines`
-      on: ["let's play"]
-      off: ["done playing"]
-```
-
-- **Actions:**
-  - built-in ids (see `archnest list`)
-  - `{ run: "any shell command" }`
-  - `{ open: app, screen: left, new: true }`, `{ close: app }`, `{ play: app, screen: right }`
-  - a list of these, run in order
-- **`probe`:** a command archnest polls every 5 s (exit 0 = on), so Google Home shows the real state.
-- **`routines:`** at the top level: phrases that switch several devices at once.
-- **New devices:** they appear in Google Home within a minute of the restart. **Give each one the
-  room**, then regenerate the routines.
-
-**[docs/CONFIG.md](docs/CONFIG.md)** is the full reference: every setting, device type, built-in
-action, app matching, probe examples and phrase tips.
-
-## Spotify: "play X" from the Nest, on the PC
-
-Google never passes the song or artist to archnest, but it can play anything on Spotify on the
-Nest. archnest then moves that playback to the PC with Spotify Connect.
-
-> "Hey Google, play Blinding Lights on Spotify" → with *Music to computer* on, it plays on the PC
-> a few seconds later. Or say it, then "play the music on the computer".
-
-It needs Spotify Premium (Spotify's rule for API apps). The installer sets it up, or do it by hand:
-
-1. Go to <https://developer.spotify.com/dashboard> and choose **Create app**. Give it any name, the
-   redirect URI `http://127.0.0.1:8898/callback`, and the API **Web API**. Copy the **Client ID**;
-   no secret is used.
-2. Run `archnest spotify login --client-id <ID>` and approve in the browser.
-3. Run `systemctl --user restart archnest`, then `archnest spotify status`.
-
-The refresh token stays in `~/.local/state/archnest/spotify.json` (mode 600). Handoff mode polls
-Spotify only while it's on, and never takes playback from phones or other computers.
+| Tool | What it does |
+|---|---|
+| `get_status` | Locked, screens, volume, what's playing, active scenes, open apps, every window and monitor |
+| `start_scene`, `stop_scene` | Your saved setups, by name or alias |
+| `open_app`, `close_app`, `move_window`, `focus_window`, `close_window` | Apps and windows on named screens |
+| `run_action` | Volume, media keys, screens on/off, lock, do not disturb, night light, keep awake, power |
+| `spotify_search`, `spotify_play` | Any track, album, artist or playlist (also your own) on this PC |
+| `find_installed_apps`, `add_app`, `remove_app` | Add programs or web apps |
+| `save_scene`, `remove_scene`, `name_screen`, `set_notes`, `undo_config_change` | Change archclaw's setup |
 
 ## Safety
 
-Voice assistants mishear things, so power actions have several layers:
-
-1. **Said twice:** from Google Home, the same power command must arrive twice within 60 s, at
-   least 3 s apart. The first one only shows a notification.
-2. **Countdown:** a notification counts down 30 s, with a **Cancel** button. *Cancel shutdown*
-   or a new power command also stops it.
-3. **Buttons only:** power actions are only allowed on `momentary` devices, and never in scenes,
-   so no "turn off …" or "turn off all lights" can power the machine down.
-4. **Boot grace:** power commands are ignored for the first 2 minutes after boot.
-5. **No remote unlock:** the lock device refuses unlocking.
+- **Power** (shutdown, reboot, sleep, logout) shows a notification with **Cancel** for 30 s first,
+  is refused right after boot, and can't be part of a scene. `run_action power.cancel` stops it.
+- **No remote unlock.** Claude can lock the computer, never unlock it.
+- **No shell from Claude.** Apps Claude adds are launched from installed desktop entries or as web
+  apps; scenes Claude saves can only open, close, play and run built-in actions. Custom commands
+  (`{ run: … }`, custom `launch:`) are yours to add in the config file.
+- **Every change Claude makes to the config** is validated, keeps your comments, and can be undone
+  (`undo_config_change`; earlier versions are in `~/.local/state/archclaw/config-history/`).
+- **Access**: only Claude's redirect URIs can register; signing in needs your owner password
+  (5 wrong tries lock it for 15 minutes). `archclaw connector revoke` signs every client out.
 
 ## Commands
 
 ```
-archnest status                 service, pairing, config
-archnest pair                   QR + pairing code
-archnest routines [--copy]      Google Home script-editor routines from your phrases
-archnest list                   built-in actions
-archnest run volume.set --percent 30
-archnest trigger <device> on    act as if Google Home switched a device
-archnest check                  validate the config
-archnest spotify login|status|logout
-journalctl --user -u archnest -f
+archclaw status                   service, tunnel, connector, Spotify and config at a glance
+archclaw check                    validate the config
+archclaw list                     built-in actions
+archclaw run <action>             run one locally (same safety rules)
+archclaw scene <name> start|stop  start or stop a scene
+archclaw connector password|url|status|revoke
+archclaw spotify login|status|logout
 ```
 
-## Troubleshooting
+Logs: `journalctl --user -u archclaw -f` and `journalctl --user -u archclaw-tunnel -f`.
 
-| Symptom | Fix |
-|---|---|
-| The phone keeps "looking for a Matter device" | Firewall: open 5353/udp and 5540/udp. Phone and PC must be on the same network. |
-| "Configure your devices in Google Home" / "I find no device called X" | The device has no room: put it in the archnest room. A rename makes a new device, which needs its room again ([renaming](docs/CONFIG.md#renaming-a-device)). Made-up names may also be misheard; prefer real words. |
-| A device shows "offline" right after a restart | The hub re-subscribes within a few minutes. |
-| "Computer (2)" in Google Home | The bridge and a device share a name. `archnest check` refuses this now. |
-| Gemini says "I can't run programs on your PC" | Use device names and phrases from the config, not "run …"/"start the program …". |
-| A command arrives but nothing happens | Run `journalctl --user -u archnest -f` while you say it. |
+## Configuration
 
-## Claude connector (optional, advanced)
+See [docs/CONFIG.md](docs/CONFIG.md). In short: `apps`, `screens`, `scenes` (with `aliases`) and
+free-form `notes` that Claude reads every time. Hand edits apply as soon as you save.
 
-archnest can also act as a remote MCP server for the Claude apps, for free-form commands such as
-"open Spotify on the middle screen and turn the volume down". It needs a public https address
-(the installer can use Tailscale Funnel) and is off by default. It is protected by OAuth, an
-owner password and Claude-only redirect URIs. See `archnest connector status` and
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+## Spotify
+
+Needs Spotify Premium and a free app at <https://developer.spotify.com/dashboard> (Web API,
+redirect URI `http://127.0.0.1:8898/callback`). Then `archclaw spotify login --client-id <ID>`.
+Claude can then play anything on this PC, and `spotify.handoff.on` moves music that starts on a
+speaker to the PC automatically.
+
+## Requirements
+
+Arch Linux with Hyprland, Node 22.18+. [Omarchy](https://omarchy.org) adds do-not-disturb, night
+light, keep-awake and nicer app launchers; without it the rest works with plain systemd/logind.
 
 ## Development
 
 ```sh
 npm ci
-npm test            # node --test, TypeScript runs natively (no build step)
+npm test            # node --test; TypeScript runs natively (no build step)
 npm run typecheck
-ARCHNEST_CONFIG=config.example.yaml node src/cli.ts serve --dry-run
+ARCHCLAW_CONFIG=config.example.yaml node src/cli.ts check
 ```
 
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) covers the design, the research behind it and the
-roadmap.
+Architecture notes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## License
-
-Public domain ([Unlicense](LICENSE)).
+*archclaw used to be **archnest**, a Google Home/Matter bridge. Gemini's speech recognition
+couldn't reliably tell custom names apart, so it became a Claude connector instead.*

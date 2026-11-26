@@ -11,7 +11,7 @@ export type ActionContext = {
     cancelPending(): number;
 };
 
-/** Extra input some actions take, e.g. a volume level from a dimmer device. */
+/** Extra input some actions take, e.g. a volume level. */
 export type ActionParams = { percent?: number };
 
 export type Action = {
@@ -25,7 +25,6 @@ export type Action = {
 };
 
 /** Where a request came from; shown in notifications and the audit log. */
-export type Source = "matter" | "claude" | "cli" | "test";
+export type Source = "claude" | "cli" | "test";
 
-/** awaiting-repeat: first of two required requests; nothing ran yet. */
-export type Outcome = "ran" | "cancelled" | "blocked" | "failed" | "awaiting-repeat";
+export type Outcome = "ran" | "cancelled" | "blocked" | "failed";

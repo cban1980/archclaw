@@ -1,8 +1,8 @@
-# Rendered by bootstrap.sh into ~/.config/systemd/user/archnest.service.
+# Rendered by bootstrap.sh into ~/.config/systemd/user/archclaw.service.
 # @NODE@ and @APPDIR@ are replaced with absolute paths.
 
 [Unit]
-Description=archnest - Google Home (Matter) bridge for this PC
+Description=archclaw - lets Claude control this PC (MCP connector)
 Documentation=file://@APPDIR@/README.md
 # Runs inside the desktop session: actions need Hyprland, PipeWire and notifications,
 # and stopping with the session means nothing acts on a half-torn-down desktop.
@@ -16,12 +16,11 @@ Type=simple
 WorkingDirectory=@APPDIR@
 ExecStart=@NODE@ @APPDIR@/src/cli.ts serve
 Environment=NODE_ENV=production
-Environment=MATTER_LOG_LEVEL=notice
 Restart=on-failure
 RestartSec=5
 # Shutdown/reboot go through logind's D-Bus API, which needs no extra privileges.
 NoNewPrivileges=yes
-# Give Google Home time to see the bridge go offline cleanly.
+# Let in-flight requests finish.
 TimeoutStopSec=10
 
 [Install]

@@ -1,0 +1,17 @@
+# Rendered by bootstrap.sh into ~/.config/systemd/user/archclaw-tunnel.service.
+# Publishes archclaw's local connector (127.0.0.1 only) at your Cloudflare hostname.
+
+[Unit]
+Description=archclaw - Cloudflare Tunnel for the Claude connector
+Documentation=file://@APPDIR@/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=@CLOUDFLARED@ --no-autoupdate --config @TUNNEL_CONFIG@ tunnel run
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

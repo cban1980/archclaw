@@ -43,7 +43,9 @@ export function resolveRef(ref: ActionRef, registry: Registry, config: Pick<Conf
     return registry.resolve(ref);
 }
 
-/** The app a device opens, if its `on` is a single open action (used for live state). */
+/** The first app a reference opens (used to tell whether a scene is active). */
 export function appOf(ref: ActionRef | undefined, config: Pick<Config, "apps">) {
-    return ref && typeof ref === "object" && !Array.isArray(ref) && "open" in ref ? config.apps[ref.open] : undefined;
+    const refs = ref === undefined ? [] : Array.isArray(ref) ? ref : [ref];
+    const open = refs.find(r => typeof r === "object" && "open" in r) as { open: string } | undefined;
+    return open ? config.apps[open.open] : undefined;
 }

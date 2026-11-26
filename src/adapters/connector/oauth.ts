@@ -14,7 +14,7 @@ import type { Logger } from "../../core/log.ts";
 import type { Notifier } from "../../core/notifier.ts";
 import { type ConnectorStore, hashToken, newToken } from "./store.ts";
 
-export const SCOPE = "archnest";
+export const SCOPE = "archclaw";
 const ACCESS_TTL_S = 3600;
 const REFRESH_TTL_MS = 30 * 24 * 3600 * 1000;
 const CODE_TTL_MS = 5 * 60 * 1000;
@@ -45,7 +45,7 @@ type Access = { clientId: string; scopes: string[]; resource?: string; expiresAt
  * itself (DCR), the owner approves on a consent page with the owner password, and
  * Claude gets a 1 h access token plus a rotating 30-day refresh token.
  */
-export class ArchnestOAuthProvider implements OAuthServerProvider {
+export class ArchclawOAuthProvider implements OAuthServerProvider {
     #store: ConnectorStore;
     #log: Logger;
     #notifier: Notifier;
@@ -135,7 +135,7 @@ export class ArchnestOAuthProvider implements OAuthServerProvider {
             expiresAt: now + CODE_TTL_MS,
         });
         this.#log.info(`connector: approved ${pending.client.client_name ?? pending.client.client_id}`);
-        this.#notifier.info("archnest", `Claude was connected to ${this.#name}.`);
+        this.#notifier.info("archclaw", `Claude was connected to ${this.#name}.`);
         redirect.searchParams.set("code", code);
         res.redirect(redirect.toString());
     }
@@ -208,14 +208,14 @@ input{width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px
 
 function consentPage(o: { id: string; name: string; redirectHost: string; error?: string }) {
     return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>archnest – connect Claude</title><style>${STYLE}</style></head><body><main>
+<title>archclaw – connect Claude</title><style>${STYLE}</style></head><body><main>
 <h1>Connect Claude to ${esc(o.name)}</h1>
-<p>Claude will be able to control this computer through archnest: open and close apps, change volume and screens,
+<p>Claude will be able to control this computer through archclaw: open and close apps, change volume and screens,
 lock it, and (with a countdown on screen) shut it down or restart it. You will be sent back to <b>${esc(o.redirectHost)}</b>.</p>
 ${o.error ? `<p class="err">${esc(o.error)}</p>` : ""}
 <form method="post" action="consent">
 <input type="hidden" name="id" value="${esc(o.id)}">
-<label for="pw">archnest owner password</label>
+<label for="pw">archclaw owner password</label>
 <input id="pw" name="password" type="password" autocomplete="current-password" autofocus>
 <div class="row"><button class="deny" name="decision" value="deny">Deny</button>
 <button class="allow" name="decision" value="allow">Allow</button></div>
@@ -224,5 +224,5 @@ ${o.error ? `<p class="err">${esc(o.error)}</p>` : ""}
 
 function messagePage(text: string) {
     return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>archnest</title><style>${STYLE}</style></head><body><main><p>${esc(text)}</p></main></body></html>`;
+<title>archclaw</title><style>${STYLE}</style></head><body><main><p>${esc(text)}</p></main></body></html>`;
 }

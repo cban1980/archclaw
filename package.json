@@ -1,27 +1,26 @@
 {
-  "name": "archnest",
-  "version": "1.0.0",
-  "description": "Control an Arch/Omarchy PC by voice with Google Home / Nest: a Matter bridge with locks, lights, dimmers, apps on screens, Spotify handoff and safe power actions",
+  "name": "archclaw",
+  "version": "2.0.0",
+  "description": "Let Claude run your Arch/Omarchy desktop from your phone: a remote MCP server with scenes, apps on screens, Spotify, and safe power actions",
   "main": "src/cli.ts",
   "scripts": {
     "start": "node src/cli.ts serve",
     "check": "node src/cli.ts check",
     "typecheck": "tsc",
-    "test": "node --test test/*.test.ts",
-    "routines": "node src/cli.ts routines"
+    "test": "node --test test/*.test.ts"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cban1980/archnest.git"
+    "url": "git+https://github.com/cban1980/archclaw.git"
   },
   "keywords": [
     "arch-linux",
-    "google-home",
-    "home-automation",
+    "claude",
+    "mcp",
+    "mcp-server",
     "hyprland",
-    "matter",
-    "nest",
     "omarchy",
+    "home-automation",
     "spotify",
     "systemd",
     "voice-control"
@@ -29,18 +28,17 @@
   "license": "Unlicense",
   "type": "module",
   "bugs": {
-    "url": "https://github.com/cban1980/archnest/issues"
+    "url": "https://github.com/cban1980/archclaw/issues"
   },
-  "homepage": "https://github.com/cban1980/archnest#readme",
+  "homepage": "https://github.com/cban1980/archclaw#readme",
   "dependencies": {
-    "@matter/main": "^0.18.1",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "express": "^5.3.0",
     "yaml": "^2.9.1",
     "zod": "^4.6.7"
   },
   "bin": {
-    "archnest": "src/cli.ts"
+    "archclaw": "src/cli.ts"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

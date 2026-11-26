@@ -8,7 +8,16 @@ const API = "https://api.spotify.com/v1";
 type Saved = { clientId: string; refreshToken: string };
 
 export type SpotifyDevice = { id: string | null; name: string; type: string; is_active: boolean; is_restricted: boolean };
-export type PlaybackState = { is_playing: boolean; device?: SpotifyDevice; item?: { name?: string } | null };
+export type PlaybackState = {
+    is_playing: boolean;
+    device?: SpotifyDevice;
+    shuffle_state?: boolean;
+    repeat_state?: string;
+    item?: { name?: string; uri?: string; artists?: Array<{ name: string }>; album?: { name?: string } } | null;
+};
+
+export type SearchKind = "track" | "album" | "playlist" | "artist";
+export type SearchHit = { kind: SearchKind; name: string; uri: string; by?: string };
 
 export class SpotifyError extends Error {
     readonly status: number;
@@ -20,7 +29,7 @@ export class SpotifyError extends Error {
     }
 }
 
-/** Refresh-token storage shared by the CLI (`archnest spotify login`) and the service. */
+/** Refresh-token storage shared by the CLI (`archclaw spotify login`) and the service. */
 export class SpotifyTokenStore {
     readonly path: string;
     constructor(path: string) {
@@ -82,13 +91,13 @@ export class SpotifyClient {
     async #token(force = false): Promise<string> {
         if (!force && this.#access && this.#access.expiresAt > Date.now() + 30_000) return this.#access.token;
         const saved = this.#store.load();
-        if (!saved) throw new SpotifyError("not logged in to Spotify; run `archnest spotify login`", 401);
+        if (!saved) throw new SpotifyError("not logged in to Spotify; run `archclaw spotify login`", 401);
         let t;
         try {
             t = await tokenRequest({ grant_type: "refresh_token", refresh_token: saved.refreshToken, client_id: saved.clientId });
         } catch (err) {
             if (err instanceof SpotifyError && err.status === 400) {
-                throw new SpotifyError("the Spotify login has expired or was revoked; run `archnest spotify login`", 401);
+                throw new SpotifyError("the Spotify login has expired or was revoked; run `archclaw spotify login`", 401);
             }
             throw err;
         }
@@ -135,7 +144,35 @@ export class SpotifyClient {
         return this.#call<void>("PUT", "/me/player", { device_ids: [deviceId], play });
     }
 
-    play(deviceId: string) {
-        return this.#call<void>("PUT", `/me/player/play?device_id=${encodeURIComponent(deviceId)}`);
+    /** Resumes, or plays `uris` (tracks) or a `context_uri` (album, playlist, artist) on the device. */
+    play(deviceId: string, what?: { uris?: string[]; context_uri?: string }) {
+        return this.#call<void>("PUT", `/me/player/play?device_id=${encodeURIComponent(deviceId)}`, what);
+    }
+
+    /** The user's own and followed playlists (needs playlist-read-private for private ones). */
+    async myPlaylists(): Promise<SearchHit[]> {
+        const out: SearchHit[] = [];
+        for (let offset = 0; offset < 500; offset += 50) {
+            type Page = { items: Array<{ name: string; uri: string; owner?: { display_name?: string } } | null>; next: string | null };
+            const page = await this.#call<Page>("GET", `/me/playlists?limit=50&offset=${offset}`);
+            for (const p of page?.items ?? []) if (p) out.push({ kind: "playlist", name: p.name, uri: p.uri, ...(p.owner?.display_name ? { by: p.owner.display_name } : {}) });
+            if (!page?.next) break;
+        }
+        return out;
+    }
+
+    async search(query: string, kinds: SearchKind[], limit = 5): Promise<SearchHit[]> {
+        const q = new URLSearchParams({ q: query, type: kinds.join(","), limit: String(limit) });
+        type Item = { name: string; uri: string; artists?: Array<{ name: string }>; owner?: { display_name?: string } } | null;
+        const res = await this.#call<Record<string, { items: Item[] }>>("GET", `/search?${q}`);
+        const hits: SearchHit[] = [];
+        for (const kind of kinds) {
+            for (const item of res?.[`${kind}s`]?.items ?? []) {
+                if (!item) continue; // Spotify returns null for some unavailable playlists
+                const by = item.artists?.map(a => a.name).join(", ") || item.owner?.display_name;
+                hits.push({ kind, name: item.name, uri: item.uri, ...(by ? { by } : {}) });
+            }
+        }
+        return hits;
     }
 }

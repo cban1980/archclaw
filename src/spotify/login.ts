@@ -4,7 +4,8 @@ import { type SpotifyTokenStore, tokenRequest } from "./client.ts";
 
 export const LOGIN_PORT = 8898;
 export const REDIRECT_URI = `http://127.0.0.1:${LOGIN_PORT}/callback`;
-const SCOPES = "user-read-playback-state user-modify-playback-state";
+// Playback control, plus the user's own playlists (including private ones) for "play my X playlist".
+export const SCOPES = "user-read-playback-state user-modify-playback-state playlist-read-private";
 
 /**
  * Authorization Code with PKCE (no client secret). Opens a one-shot listener on
@@ -34,8 +35,8 @@ export async function spotifyLogin(clientId: string, store: SpotifyTokenStore, o
             const page = (msg: string) =>
                 res
                     .writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
-                    .end(`<!doctype html><meta charset="utf-8"><title>archnest</title><body style="font:16px system-ui;background:#111;color:#eee;padding:32px"><p>${msg}</p>`);
-            if (u.searchParams.get("state") !== state) return page("Unexpected login response; start again with <code>archnest spotify login</code>.");
+                    .end(`<!doctype html><meta charset="utf-8"><title>archclaw</title><body style="font:16px system-ui;background:#111;color:#eee;padding:32px"><p>${msg}</p>`);
+            if (u.searchParams.get("state") !== state) return page("Unexpected login response; start again with <code>archclaw spotify login</code>.");
             const err = u.searchParams.get("error");
             const got = u.searchParams.get("code");
             clearTimeout(timer);
@@ -44,7 +45,7 @@ export async function spotifyLogin(clientId: string, store: SpotifyTokenStore, o
                 page(`Spotify login failed: ${err ?? "no code"}. You can close this tab.`);
                 return reject(new Error(`Spotify login failed: ${err ?? "no code"}`));
             }
-            page("archnest is connected to Spotify. You can close this tab.");
+            page("archclaw is connected to Spotify. You can close this tab.");
             resolve(got);
         });
         server.on("error", err => (clearTimeout(timer), reject(err)));

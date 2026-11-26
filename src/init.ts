@@ -1,12 +1,9 @@
-import { randomInt } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { parseDocument } from "yaml";
 
 type Monitor = { name: string; x: number };
 type App = { launch: string; match: string };
-
-const INVALID = new Set([0, 11111111, 22222222, 33333333, 44444444, 55555555, 66666666, 77777777, 88888888, 99999999, 12345678, 87654321]);
 
 /** Screen names by position, left to right. */
 export function nameScreens(monitors: Monitor[]): Record<string, string> {
@@ -19,17 +16,6 @@ export function nameScreens(monitors: Monitor[]): Record<string, string> {
     return Object.fromEntries(sorted.map((name, i) => [labels[i], name]));
 }
 
-export function randomPasscode(): number {
-    for (;;) {
-        const p = randomInt(1, 99999999);
-        if (!INVALID.has(p)) return p;
-    }
-}
-
-/**
- * Writes a config from the example: your monitors, a random pairing passcode and
- * discriminator, and the given name. Refuses to overwrite unless `force`.
- */
 /** Window class guess from a desktop file id: "com.mitchellh.ghostty.desktop" → "ghostty". */
 export function classFromDesktopId(id: string): string {
     const base = id.replace(/\.desktop$/, "").replace(/-(stable|beta|dev)$/, "");
@@ -49,6 +35,7 @@ export function detectApps(sh: (cmd: string, argv: string[]) => string): Record<
     return apps;
 }
 
+/** Writes a config from the example with your monitors, apps and name. Refuses to overwrite unless `force`. */
 export function initConfig(opts: {
     examplePath: string;
     target: string;
@@ -67,8 +54,6 @@ export function initConfig(opts: {
             doc.setIn(["apps", key, "match"], app.match);
         }
     }
-    doc.setIn(["matter", "passcode"], randomPasscode());
-    doc.setIn(["matter", "discriminator"], randomInt(0, 4096));
     mkdirSync(dirname(opts.target), { recursive: true });
     writeFileSync(opts.target, doc.toString(), { mode: 0o600 });
     return { written: true as const, screens: nameScreens(opts.monitors), apps: opts.apps ?? {} };

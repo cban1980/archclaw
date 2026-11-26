@@ -10,13 +10,13 @@ export type AppConfig = {
     player?: string;
 };
 
-type Client = { address: string; class: string; title: string; monitor: number };
-type Monitor = { id: number; name: string };
+export type Client = { address: string; class: string; title: string; monitor: number; workspace?: { name: string }; focusHistoryID?: number };
+export type Monitor = { id: number; name: string; width?: number; height?: number; x?: number; focused?: boolean; dpmsStatus?: boolean };
 
 const WAIT_FOR_WINDOW_MS = 20_000;
 const POLL_MS = 400;
 
-async function clients(exec: Executor): Promise<Client[]> {
+export async function clients(exec: Executor): Promise<Client[]> {
     try {
         return JSON.parse(await exec.capture("hyprctl clients -j")) as Client[];
     } catch {
@@ -24,7 +24,7 @@ async function clients(exec: Executor): Promise<Client[]> {
     }
 }
 
-async function monitors(exec: Executor): Promise<Monitor[]> {
+export async function monitors(exec: Executor): Promise<Monitor[]> {
     try {
         return JSON.parse(await exec.capture("hyprctl monitors -j")) as Monitor[];
     } catch {
@@ -37,7 +37,7 @@ export function matches(app: AppConfig, c: Pick<Client, "class" | "title">): boo
     return re.test(c.class) || re.test(c.title);
 }
 
-/** True while at least one window of the app exists. Used to keep Google Home in sync. */
+/** True while at least one window of the app exists. */
 export async function isAppRunning(exec: Executor, app: AppConfig): Promise<boolean> {
     return (await clients(exec)).some(c => matches(app, c));
 }
@@ -45,14 +45,14 @@ export async function isAppRunning(exec: Executor, app: AppConfig): Promise<bool
 const dispatch = (exec: Executor, lua: string, legacy: string) =>
     exec.sh(`hyprctl dispatch '${lua.replace(/'/g, `'\\''`)}' >/dev/null || hyprctl dispatch ${legacy}`);
 
-const moveToMonitor = (exec: Executor, address: string, monitor: string) =>
+export const moveToMonitor = (exec: Executor, address: string, monitor: string) =>
     dispatch(
         exec,
         `hl.dsp.window.move({ monitor = "${monitor}", window = "address:${address}" })`,
         `movewindow mon:${monitor},address:${address}`,
     );
 
-const focus = (exec: Executor, address: string) =>
+export const focus = (exec: Executor, address: string) =>
     dispatch(exec, `hl.dsp.focus({ window = "address:${address}" })`, `focuswindow address:${address}`);
 
 /**
@@ -96,6 +96,9 @@ export function openApp(name: string, app: AppConfig, opts: { monitor?: string; 
     };
 }
 
+export const closeWindow = (exec: Executor, address: string) =>
+    dispatch(exec, `hl.dsp.window.close({ window = "address:${address}" })`, `closewindow address:${address}`);
+
 /** Closes every window of an app. */
 export function closeApp(name: string, app: AppConfig): Action {
     return {
@@ -103,9 +106,7 @@ export function closeApp(name: string, app: AppConfig): Action {
         title: `Close ${name}`,
         risk: "safe",
         async run({ exec }) {
-            for (const c of (await clients(exec)).filter(c => matches(app, c))) {
-                await dispatch(exec, `hl.dsp.window.close({ window = "address:${c.address}" })`, `closewindow address:${c.address}`);
-            }
+            for (const c of (await clients(exec)).filter(c => matches(app, c))) await closeWindow(exec, c.address);
         },
     };
 }

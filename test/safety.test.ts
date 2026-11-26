@@ -24,16 +24,15 @@ function fakeNotifier() {
     return { notifier, pressCancel: () => pressCancel?.() };
 }
 
-function setup(opts: { countdown?: number; grace?: number; uptime?: number; repeat?: number; clock?: { now: number } } = {}) {
+function setup(opts: { countdown?: number; grace?: number; uptime?: number } = {}) {
     const ran: string[] = [];
     const exec: Executor = { sh: async cmd => (ran.push(cmd), 0), test: async () => true, capture: async () => "[]" };
     const { notifier, pressCancel } = fakeNotifier();
     const safety = new Safety(
-        { countdownSeconds: opts.countdown ?? 0.05, bootGraceSeconds: opts.grace ?? 0, repeatWindowSeconds: opts.repeat ?? 60 },
+        { countdownSeconds: opts.countdown ?? 0.05, bootGraceSeconds: opts.grace ?? 0 },
         notifier,
         quiet,
         () => opts.uptime ?? 10_000,
-        () => opts.clock?.now ?? Date.now(),
     );
     const registry = new Registry().add(...powerActions);
     const dispatcher = new Dispatcher(safety, exec, quiet);
@@ -92,52 +91,4 @@ test("unknown action ids fail loudly; shell refs resolve", () => {
     assert.throws(() => registry.resolve("power.explode"), /unknown action/);
     const a: Action = registry.resolve({ run: "echo hi" });
     assert.equal(a.risk, "safe");
-});
-
-test("a single voice request for shutdown does nothing", async () => {
-    const { ran, registry, dispatcher } = setup();
-    assert.equal(await dispatcher.dispatch(registry.get("power.shutdown")!, "matter"), "awaiting-repeat");
-    assert.deepEqual(ran, []);
-});
-
-test("a repeated voice request within the window proceeds", async () => {
-    const clock = { now: 1_000_000 };
-    const { ran, registry, dispatcher } = setup({ clock });
-    const shutdown = registry.get("power.shutdown")!;
-    assert.equal(await dispatcher.dispatch(shutdown, "matter"), "awaiting-repeat");
-    clock.now += 10_000;
-    assert.equal(await dispatcher.dispatch(shutdown, "matter"), "ran");
-    assert.equal(ran.length, 1);
-});
-
-test("a duplicate delivered within seconds does not confirm", async () => {
-    const clock = { now: 1_000_000 };
-    const { ran, registry, dispatcher } = setup({ clock });
-    const shutdown = registry.get("power.shutdown")!;
-    await dispatcher.dispatch(shutdown, "matter");
-    clock.now += 500;
-    assert.equal(await dispatcher.dispatch(shutdown, "matter"), "awaiting-repeat");
-    assert.deepEqual(ran, []);
-});
-
-test("the repeat must be the same action and inside the window", async () => {
-    const clock = { now: 1_000_000 };
-    const { ran, registry, dispatcher } = setup({ clock });
-    await dispatcher.dispatch(registry.get("power.reboot")!, "matter");
-    clock.now += 10_000;
-    assert.equal(await dispatcher.dispatch(registry.get("power.shutdown")!, "matter"), "awaiting-repeat");
-    clock.now += 61_000;
-    assert.equal(await dispatcher.dispatch(registry.get("power.shutdown")!, "matter"), "awaiting-repeat");
-    assert.deepEqual(ran, []);
-});
-
-test("cancel also clears a half-confirmed request", async () => {
-    const clock = { now: 1_000_000 };
-    const { ran, registry, dispatcher } = setup({ clock });
-    const shutdown = registry.get("power.shutdown")!;
-    await dispatcher.dispatch(shutdown, "matter");
-    await dispatcher.dispatch(registry.get("power.cancel")!, "matter");
-    clock.now += 10_000;
-    assert.equal(await dispatcher.dispatch(shutdown, "matter"), "awaiting-repeat");
-    assert.deepEqual(ran, []);
 });

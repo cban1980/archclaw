@@ -15,12 +15,12 @@ export type Notifier = {
 export function createDesktopNotifier(): Notifier {
     return {
         info(summary, body = "") {
-            spawn("notify-send", ["-a", "archnest", summary, body], { stdio: "ignore" }).on("error", () => {});
+            spawn("notify-send", ["-a", "archclaw", summary, body], { stdio: "ignore" }).on("error", () => {});
         },
         countdown(summary, body, seconds) {
             const child = spawn(
                 "notify-send",
-                ["-a", "archnest", "-u", "critical", "-t", String(seconds * 1000), "-A", "cancel=Cancel", summary, body],
+                ["-a", "archclaw", "-u", "critical", "-t", String(seconds * 1000), "-A", "cancel=Cancel", summary, body],
                 { stdio: ["ignore", "pipe", "ignore"] },
             );
             let out = "";

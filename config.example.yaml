@@ -1,27 +1,24 @@
-# archnest config. `archnest init` writes this to ~/.config/archnest/config.yaml with your
-# monitors and a random pairing passcode. Device names are what you say to Google.
-# A Swedish preset lives in presets/sv.yaml (`archnest init --preset sv`).
-name: archnest            # the bridge itself in Google Home; keep it unlike any device name
+# archclaw config. `archclaw init` writes this to ~/.config/archclaw/config.yaml with your
+# monitors and default apps. Claude can change most of it for you ("add Discord", "when I say
+# focus mode, open the browser on the left and mute"), so you rarely need to edit it by hand.
+# Hand edits apply as soon as you save; `archclaw check` validates.
+name: my-pc                # this computer's name, as Claude and the sign-in page call it
 
-# Put all archnest devices in this Google Home room (Home app → device → Room). A room of
-# their own keeps "turn off the lights in the living room" away from the screens and volume.
-room: Desk
+# Notes Claude reads every time: who you are, your language, words you use, habits.
+notes: |
+  I usually talk to Claude by voice from my phone, so keep answers short.
 
-matter:
-  port: 5540
-  # Change these before pairing; the defaults are well-known test values.
-  passcode: 20202021
-  discriminator: 3840
-
-# Friendly names for your monitors (see `hyprctl monitors`), used by `screen:` below.
+# Friendly names for your monitors (`hyprctl monitors`), used by `screen:`.
 screens:
   left: HDMI-A-1
   middle: DP-3
   right: HDMI-A-2
 
-# Apps archnest can open/close. `match` is checked against window class and title.
+# Apps archclaw can open, close, move and play. `match` is a word in the window class or title.
+# Apps Claude adds use `uwsm-app -- <id>.desktop` or `omarchy-launch-webapp '<url>'`; anything
+# else (a custom command) can only be added here, by you.
 apps:
-  browser:                 # `archnest init` fills in your default browser and terminal
+  browser:                 # `archclaw init` fills in your default browser and terminal
     launch: omarchy-launch-browser
     match: chromium
   spotify:
@@ -31,168 +28,42 @@ apps:
     launch: uwsm-app -- xdg-terminal-exec
     match: ghostty
 
-# Claude connector: lets the Claude apps (phone, desktop, web) control this PC through
-# archnest's tools. Off by default. `./bootstrap.sh` can set it up with Tailscale Funnel,
-# or see README → Claude connector.
-connector:
-  enabled: false
-  port: 8765                 # local only (127.0.0.1); the tunnel forwards to it
-  # publicUrl: https://your-pc.your-tailnet.ts.net
+# Scenes: named setups Claude starts and stops when you say their name or an alias.
+# Steps: a built-in action id (`archclaw list`), { open: app, screen: name, new: true },
+# { close: app }, { play: app, screen: name }, or { run: "shell command" } (hand edits only).
+# Without `stop`, nothing happens on stop. Power actions can't be in scenes.
+scenes:
+  - name: focus
+    aliases: [focus mode, work]
+    description: Browser on the left, terminal in the middle, do not disturb on
+    start:
+      - { open: browser, screen: left }
+      - { open: terminal, screen: middle }
+      - dnd.on
+    stop:
+      - dnd.off
 
-# Spotify Connect (optional, needs Premium): `archnest spotify login` once.
-# Music devices then take over playback from the Nest ("play X on Spotify" → this PC).
+  - name: done
+    aliases: [i'm done with the computer, good night]
+    description: Pause music, lock the computer and turn the screens off
+    start:
+      - media.pause
+      - power.lock
+      - display.off
+
+# The Claude connector (a remote MCP server). `./bootstrap.sh` sets up a Cloudflare Tunnel
+# and the address; or see README → Connect Claude.
+connector:
+  port: 8765                 # local only (127.0.0.1); the tunnel forwards to it
+  # publicUrl: https://pc.example.com
+
+# Spotify (optional, needs Premium): `archclaw spotify login` once. Claude can then play any
+# track, album, artist or playlist here, and move playback from a speaker to this PC.
 spotify:
-  screen: right                # where Spotify opens if it isn't running
-  # device: my-pc              # this PC's name in Spotify Connect (default: hostname)
-  # handoffFrom: [Living Room speaker]   # default: any speaker/TV, never phones or computers
+  screen: right              # where Spotify opens if it isn't running
+  # device: my-pc            # this PC's name in Spotify Connect (default: hostname)
+  # handoffFrom: [Living Room speaker]   # handoff mode moves from these (default: speakers/TVs)
 
 safety:
-  countdownSeconds: 30     # risky actions show a notification with a Cancel button first
-  bootGraceSeconds: 120    # ignore risky commands right after boot
-  repeatWindowSeconds: 60  # from Google Home, risky commands must be given twice within this window
-
-# Device types and how Gemini understands them:
-#   lock:      "lock the computer"               runs `on`; remote unlocking is always refused
-#   light:     "turn off the screens"            on/off; "turn off all lights" includes it
-#   plug:      "turn on/off X"                   on/off
-#   dimmer:    "set X to 30 percent"             on/off + level (`level` action gets the percent)
-#   momentary: a button for routines             runs `on`, then flips back off
-# Actions: built-in ids (`archnest list`), { run: "shell" }, { open: app, screen: name, new: true },
-# { close: app }, or a list of these run in order (a scene).
-# Power actions (shutdown/reboot/suspend/logout) are only allowed on momentary devices.
-# `probe` is polled every 5 s (exit 0 = on/locked) so Google Home shows the real state.
-devices:
-  - name: Computer
-    type: lock
-    on: power.lock
-    probe: omarchy-hyprland-session-locked
-
-  - name: Screens
-    type: light
-    initial: true
-    on: display.on
-    off: display.off
-    probe: "hyprctl monitors -j | jq -e 'length > 0 and all(.[]; .dpmsStatus)'"
-
-  # Sound and music. "Computer volume" is a dimmer: "set computer volume to 30 percent".
-  # Note: Google treats dimmers as lights, so "turn off all lights" also mutes the PC.
-  - name: Computer volume
-    type: dimmer
-    initial: true
-    on: volume.unmute
-    off: volume.mute
-    level: volume.set
-    probe: "LC_ALL=C pactl get-sink-mute \"$(omarchy-audio-output-sink)\" | grep -q 'Mute: no'"
-    levelProbe: "LC_ALL=C pactl get-sink-volume \"$(omarchy-audio-output-sink)\" | awk 'NR==1{for(i=1;i<=NF;i++) if($i ~ /%$/){sub(\"%\",\"\",$i); print $i; exit}}'"
-    phrases:
-      off: ["mute the computer"]
-
-  - name: Computer music
-    type: plug                 # shows whether anything is playing (Spotify, browser, …)
-    on: spotify.here
-    off: media.pause
-    probe: playerctl -a status 2>/dev/null | grep -qx Playing
-    phrases:
-      on: ["play the music on the computer", "move the music to the computer"]
-      off: ["pause the music on the computer"]
-
-  - name: Music to computer
-    type: plug                 # moves Spotify playback from the Nest to this PC ("play X on Spotify")
-    on: spotify.handoff.on
-    off: spotify.handoff.off
-    probe: test -e "${ARCHNEST_STORAGE:-${XDG_STATE_HOME:-$HOME/.local/state}/archnest}/spotify-handoff"
-
-  - name: Next track on computer
-    type: momentary
-    on: media.next
-    phrases:
-      on: ["next song on the computer"]
-
-  - name: Previous track on computer
-    type: momentary
-    on: media.previous
-    phrases:
-      on: ["previous song on the computer"]
-
-  # Desktop toggles; each one shows its real state in Google Home.
-  - name: Do not disturb
-    type: plug
-    on: dnd.on
-    off: dnd.off
-    probe: test "$(omarchy-shell notifications isDnd)" = on
-
-  - name: Night light
-    type: plug
-    on: nightlight.on
-    off: nightlight.off
-    probe: omarchy-toggle-nightlight --status | jq -e .enabled >/dev/null
-
-  - name: Keep computer awake
-    type: plug
-    on: awake.on
-    off: awake.off
-    probe: omarchy-toggle-idle status | jq -e .enabled >/dev/null
-
-  # Apps. Plugs show in Google Home whether the app is running.
-  - name: Spotify app
-    type: plug
-    on: { open: spotify, screen: right }
-    off: { close: spotify }
-    phrases:
-      on: ["open spotify on the computer", "start spotify on the computer"]
-      off: ["close spotify on the computer"]
-
-  - name: Browser
-    type: momentary          # open only: closing the browser by voice could lose tabs
-    on: { open: browser, screen: left }
-    phrases:
-      on: ["open the browser", "open the browser on the computer"]
-
-  - name: New terminal
-    type: momentary          # always a new window; never closes terminals (this one included)
-    on: { open: terminal, screen: middle, new: true }
-    phrases:
-      on: ["open a terminal", "new terminal on the computer"]
-
-  # A scene: everything at once, each on its own screen.
-  - name: Work mode
-    type: momentary
-    on:
-      - { open: browser, screen: left }
-      - { open: terminal, screen: middle, new: true }
-      - { open: spotify, screen: right }
-    phrases:
-      on: ["time to work", "start work mode"]
-
-  # Triggered by routines ("shut down the computer", "restart the computer", ...).
-  - name: Computer shutdown
-    type: momentary
-    on: power.shutdown
-    phrases:
-      on: ["shut down the computer", "turn off the computer for the night", "power off the computer"]
-
-  - name: Computer restart
-    type: momentary
-    on: power.reboot
-    phrases:
-      on: ["restart the computer", "reboot the computer"]
-
-  - name: Computer sleep
-    type: momentary
-    on: power.suspend
-    phrases:
-      on: ["put the computer to sleep", "computer go to sleep"]
-
-  - name: Cancel shutdown
-    type: momentary
-    on: power.cancel
-    phrases:
-      on: ["cancel the shutdown", "cancel the restart", "don't shut down the computer"]
-
-# Phrases that switch several devices at once (also in `archnest routines`).
-routines:
-  - phrases: ["i'm done with the computer"]
-    actions:
-      - Spotify app: false
-      - Computer: true            # lock
-      - Screens: false
+  countdownSeconds: 30       # shutdown/reboot/sleep/logout: a notification with Cancel first
+  bootGraceSeconds: 120      # and never right after boot
