@@ -189,6 +189,45 @@ else
   archnest pair | sed 's/^/  /'
 fi
 
+# ── 8. Claude connector (optional) ────────────────────────────────────────────
+step "Claude connector (optional)"
+connector_enabled="$(node -e 'const {parse}=require("yaml");const c=parse(require("fs").readFileSync(process.argv[1],"utf8"));console.log(c?.connector?.enabled===true)' "$CONFIG")"
+if [[ $connector_enabled == true ]]; then
+  ok "Already enabled: $(archnest connector status | sed -n 's/^url: *//p')"
+elif [[ $YES == 1 ]]; then
+  info "Skipped in non-interactive mode. Run ./bootstrap.sh again to set it up."
+elif confirm "Set up the Claude connector, so the Claude app can control this PC?"; then
+  info "Claude connects from Anthropic's cloud, so archnest needs a public https address."
+  info "This uses Tailscale Funnel (free, fixed address, no domain needed)."
+  if ! archnest connector status | grep -q '^password:  set'; then
+    info "Choose the owner password you'll enter when connecting Claude:"
+    archnest connector password
+  fi
+  if ! command -v tailscale >/dev/null; then
+    confirm "Install tailscale with pacman?" && sudo pacman -S --needed --noconfirm tailscale
+  fi
+  command -v tailscale >/dev/null || die "tailscale is required for the connector."
+  systemctl is-active --quiet tailscaled || sudo systemctl enable --now tailscaled
+  if ! tailscale status >/dev/null 2>&1; then
+    info "Sign in to Tailscale in the browser window that opens (a free account is enough):"
+    sudo tailscale up --operator="$USER"
+  fi
+  connector_port="$(node -e 'const {parse}=require("yaml");const c=parse(require("fs").readFileSync(process.argv[1],"utf8"));console.log(c?.connector?.port ?? 8765)' "$CONFIG")"
+  info "Publishing 127.0.0.1:$connector_port with Funnel. If Tailscale prints a link to enable Funnel, open it and approve."
+  tailscale funnel --bg "$connector_port"
+  host="$(tailscale status --json | jq -r '.Self.DNSName' | sed 's/\.$//')"
+  [[ -n $host && $host != null ]] || die "Could not read this machine's Tailscale name."
+  archnest connector enable "https://$host" >/dev/null
+  systemctl --user restart archnest.service
+  ok "Connector published at https://$host/mcp"
+  gum style --margin "0 2" \
+    "In the Claude app (or claude.ai → Settings → Connectors → Add custom connector):" \
+    "  Name: archnest    URL: https://$host/mcp" \
+    "Then sign in with the owner password you just chose."
+else
+  info "Skipped. Run ./bootstrap.sh again any time to set it up."
+fi
+
 # ── Done ──────────────────────────────────────────────────────────────────────
 header "Done!" \
   "Status:    archnest status" \

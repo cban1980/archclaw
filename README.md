@@ -7,7 +7,9 @@ understands natively:
 > "Hey Google, lock the computer" · "turn off the screens" · "set computer volume to 30 percent" ·
 > "time to work" (Edge left, terminal in the middle, Spotify right) · "shut down the computer"
 
-Everything runs on your LAN. No cloud service, no port forwarding.
+The Google Home part runs entirely on your LAN, with no cloud service and no port forwarding.
+The optional [Claude connector](#claude-connector-free-form-commands-from-the-claude-app) adds
+free-form control from the Claude app.
 
 ## Install
 
@@ -82,6 +84,43 @@ Voice assistants mishear things, so power actions have three layers:
 
 On top of that, power commands are ignored for the first 2 minutes after boot, and the lock
 device refuses remote unlocking.
+
+## Claude connector (free-form commands from the Claude app)
+
+Google Home only passes typed device commands to archnest, never your words. For anything
+free-form, archnest can also act as a **remote MCP server** that the Claude apps call. This
+works with a normal Claude subscription; no API account or key is needed:
+
+> *(side button → Claude)* "Open Spotify on the middle screen, turn the volume down to 20 and
+> close the browser"
+
+```
+Claude app ──▶ Anthropic cloud ──https──▶ Tailscale Funnel ──▶ 127.0.0.1:8765 (archnest) ──▶ actions
+```
+
+**Set up:** run `./bootstrap.sh` and answer yes at *Claude connector*. It asks for an owner
+password, installs and signs in to Tailscale, publishes the connector with Funnel, and prints
+the URL. Then, in Claude: **Settings → Connectors → Add custom connector**, use URL
+`https://<your-pc>.<tailnet>.ts.net/mcp`, and sign in with the owner password. Connectors added
+on claude.ai are available in the mobile apps too. To use Claude by voice from the side button,
+set Claude as the phone's **digital assistant app**. A "Hey Claude" wake word isn't possible on
+Android today.
+
+**Tools Claude gets:** `get_status`, `list_capabilities`, `run_action` (any built-in action, e.g.
+`volume.set`), `open_app` / `close_app` (on a named screen), `switch_device` (any Google Home
+device, including scenes).
+
+**Security:**
+- It listens on `127.0.0.1` only; the tunnel is the only way in.
+- OAuth 2.1 with PKCE. Only Claude's redirect URIs may register.
+- Sign-in requires the owner password: scrypt-hashed, with a lockout after 5 wrong attempts
+  (15 min), and a desktop notification when a client connects.
+- Access tokens last 1 h and live only in memory. Refresh tokens last 30 days, rotate on every
+  use, and are stored only as hashes in `~/.local/state/archnest/connector.json` (mode 600).
+- No free shell access: Claude only gets archnest's actions. Power actions still show the 30 s
+  countdown with **Cancel**.
+
+`archnest connector status | password | revoke | enable <url> | disable`
 
 ## Commands
 

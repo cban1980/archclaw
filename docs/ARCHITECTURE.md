@@ -18,7 +18,8 @@ understands**, and covering the rest with routines:
 | Routines (script editor / app) | Fixed phrases → devices | Any phrase, but fixed | ✅ (`docs/routines/`) |
 | Spotify handoff | Google searches Spotify, we move playback to the PC | Free-form music requests | Roadmap |
 | Cloud-to-cloud "TV" device | AppSelector, TransportControl, Volume | "open Spotify on the computer" with no routine | Roadmap (needs public HTTPS + OAuth) |
-| Own voice front end (mic + STT + LLM) | Raw text → actions | Fully free-form, but not through the Nest | Roadmap |
+| Claude connector (remote MCP, Claude apps) | Claude's tool calls | Fully free-form, via the Claude app (side button) | ✅ |
+| Own voice front end (mic + STT + LLM) | Raw text → actions | Fully free-form, hands-free on the PC | Roadmap |
 
 ## 2. Shape
 
@@ -68,6 +69,12 @@ src/
     system.ts            media (playerctl), volume (pactl), dnd/nightlight/stay-awake (Omarchy)
     apps.ts              open/focus/move-to-monitor/close via hyprctl
   adapters/matter.ts     bridge + per-type endpoint factories + probe loop
+  adapters/connector/    Claude connector: remote MCP over Streamable HTTP (stateless)
+    server.ts            express app: OAuth router, consent route, bearer-protected /mcp
+    oauth.ts             single-user OAuth AS: DCR limited to Claude redirects, password consent,
+                         PKCE, 1 h access tokens (memory), rotating 30-day refresh tokens
+    store.ts             owner password (scrypt), clients, refresh-token hashes (0600 JSON)
+    tools.ts             MCP tools → the same Dispatcher/Safety as Google Home
 config.example.yaml           default config (English device names)
 presets/sv.yaml               Swedish device names
 docs/routines/                Google Home script-editor routines per preset
@@ -103,6 +110,9 @@ bootstrap.sh                  gum installer
   buttons.
 - **Subscriptions after restart:** the Nest hub resumes its session immediately but may take
   minutes to re-subscribe if it dropped the old subscription; devices show "offline" until then.
+- **Free text never leaves Google.** Neither the Nest nor Gemini on the phone forwards your words,
+  so free-form control goes through the Claude app instead (the connector). A token check must
+  answer `401`, not `400`: Claude only refreshes or signs in again on a `401`.
 - **Gemini wording:** device names that sound like "a program on the PC" get "I can't run
   programs on your PC". Device types Gemini knows (lock/light) and routines avoid that.
 
@@ -136,7 +146,10 @@ bootstrap.sh                  gum installer
    Spotify Connect device. Needs Premium.
 4. **Faster recovery after boot:** start earlier (before the graphical session, with actions
    deferred until it's up), so the hub never sees the bridge as gone.
-5. **Optional voice front end:** local wake word + Whisper + an LLM with the registry exposed as
+5. ✅ **Claude connector:** the Claude apps call archnest as a remote MCP server (Tailscale
+   Funnel → localhost). Next: an optional Anthropic IP allowlist for `/mcp` and `/token`
+   (`160.79.104.0/21`), and per-tool permission levels.
+6. **Optional local voice front end:** local wake word + Whisper + an LLM with the registry exposed as
    tools, through a localhost HTTP adapter. The only route to truly free-form commands.
-6. **Packaging:** PKGBUILD (`/usr/lib/archnest`, `archnest` in `/usr/bin`, unit in
+7. **Packaging:** PKGBUILD (`/usr/lib/archnest`, `archnest` in `/usr/bin`, unit in
    `/usr/lib/systemd/user`).
