@@ -156,7 +156,7 @@ if pgrep -f "^[^ ]*node [^ ]*src/cli.ts serve" >/dev/null && ! systemctl --user 
   fi
 fi
 mkdir -p "$UNIT_DIR"
-sed -e "s|@NODE@|$NODE|g" -e "s|@APPDIR@|$APPDIR|g" "$APPDIR/systemd/archnest.service.in" | grep -v '^# Rendered\|^# @NODE@' >"$UNIT"
+grep -v '^# Rendered\|^# @NODE@' "$APPDIR/systemd/archnest.service.in" | sed -e "s|@NODE@|$NODE|g" -e "s|@APPDIR@|$APPDIR|g" >"$UNIT"
 systemctl --user daemon-reload
 systemctl --user enable archnest.service >/dev/null 2>&1
 systemctl --user restart archnest.service
