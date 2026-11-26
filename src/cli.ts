@@ -25,6 +25,7 @@ import { handoffFlag, spotifyActions, spotifyEnabled, startHandoff } from "./spo
 const usage = `usage: archclaw <command>
 
   serve                          run archclaw (what the systemd service runs): the Claude connector
+  mcp [--dry-run]                the same tools over stdio, for local MCP clients (Claude Code, tests)
   init [--name N] [--force]      create the config from your monitors and default apps
   status                         service, connector and config at a glance
   check                          validate the config
@@ -150,6 +151,35 @@ async function main() {
             }
             const { startConnector } = await import("./adapters/connector/server.ts");
             await startConnector({ store, registry, dispatcher, exec, safety, spotify: spotifyEnabled(config) ? spotifyClient : undefined, hue, log, notifier, auth });
+            return;
+        }
+        case "mcp": {
+            // stdout is the protocol stream: send every log line to stderr.
+            console.log = console.error;
+            let configPath = paths.config;
+            let statePath = paths.state;
+            if (dryRun) {
+                // A test run: config edits go to a throwaway copy; Hue and Spotify only log.
+                const { mkdtempSync, copyFileSync } = await import("node:fs");
+                const { tmpdir } = await import("node:os");
+                const dir = mkdtempSync(join(tmpdir(), "archclaw-dry-"));
+                configPath = join(dir, "config.yaml");
+                copyFileSync(paths.config, configPath);
+                statePath = join(dir, "state");
+                hue.put = async (resource: string, id: string, body: unknown) => log.info(`[dry-run] hue PUT ${resource}/${id} ${JSON.stringify(body)}`);
+                spotifyClient.play = async (device: string, what?: unknown) => log.info(`[dry-run] spotify play on ${device} ${JSON.stringify(what ?? {})}`);
+                spotifyClient.transfer = async (device: string) => log.info(`[dry-run] spotify transfer to ${device}`);
+            }
+            const store = new ConfigStore(configPath, statePath);
+            const config = store.config;
+            const registry = registryFor(config);
+            const { dispatcher, exec, safety } = core(config.safety);
+            const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+            const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
+            const { instructionsFor, registerTools } = await import("./adapters/connector/tools.ts");
+            const server = new McpServer({ name: "archclaw", version: "2.1.0" }, { instructions: instructionsFor(config) });
+            registerTools(server, { store, registry, dispatcher, exec, safety, spotify: spotifyEnabled(config) ? spotifyClient : undefined, hue });
+            await server.connect(new StdioServerTransport());
             return;
         }
         case "init": {

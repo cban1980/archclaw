@@ -138,6 +138,14 @@ npm run typecheck
 ARCHCLAW_CONFIG=config.example.yaml node src/cli.ts check
 ```
 
+Try the tools with a real Claude model, without touching anything (shell commands, Hue, Spotify
+and config edits are only logged):
+
+```sh
+echo '{"mcpServers":{"archclaw":{"command":"archclaw","args":["mcp","--dry-run"]}}}' > /tmp/archclaw-mcp.json
+claude -p "stäng mirc" --mcp-config /tmp/archclaw-mcp.json --strict-mcp-config --allowedTools mcp__archclaw
+```
+
 Architecture notes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 *archclaw used to be **archnest**, a Google Home/Matter bridge. Gemini's speech recognition
