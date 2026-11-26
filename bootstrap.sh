@@ -15,7 +15,7 @@ UNIT_DIR="$CONFIG_HOME/systemd/user"
 UNIT="$UNIT_DIR/archnest.service"
 SHIM="$HOME/.local/bin/archnest"
 # command → Arch package that provides it (checked by command, so mise/nvm installs count too)
-declare -A NEEDS=([node]=nodejs [npm]=npm [gum]=gum [qrencode]=qrencode [jq]=jq [playerctl]=playerctl [pactl]=libpulse)
+declare -A NEEDS=([node]=nodejs [npm]=npm [gum]=gum [qrencode]=qrencode [jq]=jq [playerctl]=playerctl [pactl]=libpulse [wl-copy]=wl-clipboard)
 MIN_NODE="22.18"
 
 YES=0
@@ -118,11 +118,9 @@ else
     choice="$(gum choose --header "Language for device names (what you say to Google):" "English" "Svenska")"
     [[ $choice == Svenska ]] && preset=sv
   fi
-  default_name=Computer
-  [[ $preset == sv ]] && default_name=Datorn
-  name="$default_name"
-  [[ $YES == 1 ]] || name="$(gum input --value "$default_name" --header "Name of this PC in Google Home:")"
-  archnest init --preset "$preset" --name "$name" | sed 's/^/  /'
+  name=archnest
+  [[ $YES == 1 ]] || name="$(gum input --value archnest --header "Name of the bridge in Google Home (not a device name, e.g. not \"Computer\"):")"
+  archnest init --preset "$preset" --name "${name:-archnest}" | sed 's/^/  /'
   ok "Created $CONFIG ($preset preset, random pairing passcode)"
 fi
 if ! check_output="$(archnest check 2>&1)"; then
@@ -189,7 +187,45 @@ else
   archnest pair | sed 's/^/  /'
 fi
 
-# ── 8. Claude connector (optional) ────────────────────────────────────────────
+# ── 8. Room and voice phrases ─────────────────────────────────────────────────
+step "Room and voice phrases"
+room="$(node -e 'const {parse}=require("yaml");const c=parse(require("fs").readFileSync(process.argv[1],"utf8"));console.log(c?.room ?? "Desk")' "$CONFIG")"
+gum style --margin "0 2" \
+  "After pairing, put every archnest device in the room \"$room\" in the Google Home app" \
+  "(device → settings → Room → add a custom room). Until a device has a room, Google" \
+  "answers \"configure your devices in Google Home\" instead of controlling it." \
+  "" \
+  "Then add the voice phrases: home.google.com → Automations → Add new → Script editor," \
+  "paste the output of \`archnest routines\`, Validate, Save."
+if [[ $YES != 1 ]] && command -v wl-copy >/dev/null && confirm "Copy the routines to the clipboard now?"; then
+  archnest routines --copy
+  ok "Copied"
+fi
+
+# ── 9. Spotify (optional) ─────────────────────────────────────────────────────
+step "Spotify (optional, needs Premium)"
+if archnest spotify status 2>/dev/null | grep -q '^logged in: yes'; then
+  ok "Logged in to Spotify"
+elif [[ $YES == 1 ]]; then
+  info "Skipped in non-interactive mode. Run ./bootstrap.sh again to set it up."
+elif confirm "Set up Spotify, so music you ask the Nest for can move to this PC?"; then
+  gum style --margin "0 2" \
+    "1. https://developer.spotify.com/dashboard → Create app" \
+    "   Redirect URI: http://127.0.0.1:8898/callback   API: Web API" \
+    "2. Copy the Client ID (no secret is used)."
+  client_id="$(gum input --header "Spotify Client ID:")"
+  if [[ -n $client_id ]]; then
+    archnest spotify login --client-id "$client_id"
+    systemctl --user restart archnest.service
+    ok "Spotify connected"
+  else
+    warn "No Client ID; skipped."
+  fi
+else
+  info "Skipped. Run ./bootstrap.sh again any time to set it up."
+fi
+
+# ── 10. Claude connector (optional) ───────────────────────────────────────────
 step "Claude connector (optional)"
 connector_enabled="$(node -e 'const {parse}=require("yaml");const c=parse(require("fs").readFileSync(process.argv[1],"utf8"));console.log(c?.connector?.enabled===true)' "$CONFIG")"
 if [[ $connector_enabled == true ]]; then
@@ -233,4 +269,4 @@ header "Done!" \
   "Status:    archnest status" \
   "Logs:      journalctl --user -u archnest -f" \
   "Try it:    archnest list   /   archnest trigger <device> on" \
-  "Routines:  docs/routines/ (paste into the Google Home script editor)"
+  "Phrases:   archnest routines --copy  → Google Home script editor"
