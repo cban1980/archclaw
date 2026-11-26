@@ -40,3 +40,20 @@ test("directories must exist inside home; ssh hosts must be known", async () => 
     await assert.rejects(terminalAction({ ssh: "evil.example; id" }, exec, {}), /isn't a host/);
     await assert.rejects(terminalAction({ program: "btop", ssh: "x" }, exec, {}), /not both/);
 });
+
+test("free-form commands: visible, as the user, never sudo, quoted through the environment", async () => {
+    const { commandAction } = await import("../src/terminal.ts");
+    ran.length = 0;
+    await commandAction({ command: `echo "it's $HOME"; ls`, mode: "allow" }).run(ctx);
+    const launch = ran.find(c => c.includes("xdg-terminal-exec"))!;
+    assert.match(launch, /env ARCHCLAW_CMD='echo "it'\\''s \$HOME"; ls' /);
+    assert.match(launch, /bash -lc "\$ARCHCLAW_CMD"/);
+    assert.ok(!launch.includes("Press Enter"), "allow runs directly");
+    ran.length = 0;
+    await commandAction({ command: "ls", mode: "confirm" }).run(ctx);
+    assert.ok(ran.some(c => c.includes("Press Enter")), "confirm waits");
+    for (const bad of ["sudo rm -rf /", "ls; sudo reboot", "echo $(doas id)", "pkexec x"]) {
+        assert.throws(() => commandAction({ command: bad, mode: "allow" }), /sudo/, bad);
+    }
+    assert.throws(() => commandAction({ command: "ls", dir: "/etc", mode: "allow" }), /inside your home/);
+});

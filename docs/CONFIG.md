@@ -17,6 +17,7 @@ validates.
 | `apps` | `{}` | See [Apps](#apps). |
 | `terminalPrograms` | `{}` | Your own terminal programs, name → command line, e.g. `logs: journalctl --user -f`. Claude opens them with `open_terminal`, next to installed TUIs (btop, htop, nvim, hx, lazygit, lazydocker, yazi, ranger, mc, ncdu, k9s, tmux, herdr, impala, wiremix, bluetui, claude, opencode…) and ssh to hosts in `~/.ssh/config`. Claude can't add or change these. |
 | `scenes` | `[]` | See [Scenes](#scenes). |
+| `terminalCommands` | `off` | Whether Claude may run **any command line** with `run_in_terminal`: `off`, `confirm` (a visible terminal shows the command and waits for Enter at the computer) or `allow` (runs right away, visibly, with a notification). Always as you, never with sudo/su/doas/pkexec; the terminal stays open with the output. Turning it on lets Claude do anything your user can, so only do it if you're comfortable with that. |
 | `connector` | | `port` (8765), `publicUrl` (your tunnel's https address), `listen` and `allowFrom` (see [The connector](#the-connector)). |
 | `spotify` | | See [Spotify](#spotify). |
 | `safety` | | `countdownSeconds` (30), `bootGraceSeconds` (120). See [Safety](#safety). |

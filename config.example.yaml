@@ -34,6 +34,10 @@ apps:
 terminalPrograms:
   logs: journalctl --user -f
 
+# May Claude run any command line (as you, never sudo) in a visible terminal ("run npm run dev in
+# ~/Work/app")? off | confirm (the terminal waits for Enter at the computer) | allow.
+terminalCommands: off
+
 # Scenes: named setups Claude starts and stops when you say their name or an alias.
 # Steps: a built-in action id (`archclaw list`), { open: app, screen: name, new: true },
 # { close: app }, { play: app, screen: name }, { terminal: btop, dir: ~/Work, screen: left },

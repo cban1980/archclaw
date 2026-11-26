@@ -99,6 +99,11 @@ const schema = z
          * Claude can start these by name but can't add or change them.
          */
         terminalPrograms: z.record(z.string(), z.string().min(1)).default({}),
+        /**
+         * Whether Claude may run any command (as you, never sudo) in a visible terminal:
+         * off, confirm (the terminal waits for Enter at the computer), or allow.
+         */
+        terminalCommands: z.enum(["off", "confirm", "allow"]).default("off"),
         scenes: z.array(scene).default([]),
         safety: z
             .object({

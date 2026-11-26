@@ -112,3 +112,41 @@ export async function terminalAction(req: TerminalRequest, exec: Executor, custo
         title: `Terminal${command ? ` running ${name}` : ""}${dir ? ` in ${dir}` : ""}`,
     };
 }
+
+/** Privilege escalation is never run from Claude, whatever the mode. */
+const ELEVATE = /(^|[\s;&|(`$])(sudo|su|doas|pkexec|run0)(\s|$)/;
+
+/**
+ * A visible terminal running a free-form command as the owner. The command travels in an
+ * environment variable (never spliced into shell text by us), is printed at the top, and the
+ * terminal stays open afterwards with its exit status. In confirm mode it waits for Enter.
+ */
+export function commandAction(
+    req: { command: string; dir?: string; monitor?: string; mode: "confirm" | "allow" },
+): Action {
+    const command = req.command.trim();
+    if (!command || command.length > 2000 || command.includes("\0")) throw new Error("give a command (up to 2000 characters)");
+    if (ELEVATE.test(command)) throw new Error("commands with sudo/su/doas/pkexec aren't run from here; use system_do for updates and packages");
+    const dir = req.dir ? safeDir(req.dir) : realpathSync(homedir());
+    const script = [
+        `printf '\\033[1;33m▶ Claude runs:\\033[0m %s\\n\\033[2m  in %s\\033[0m\\n\\n' "$ARCHCLAW_CMD" "$PWD"`,
+        req.mode === "confirm" ? `read -rp $'Press Enter to run it, Ctrl+C to cancel. ' || exit 1` : "",
+        `bash -lc "$ARCHCLAW_CMD"; status=$?`,
+        `printf '\\n\\033[2m[exit %s] This terminal stays open.\\033[0m\\n' "$status"`,
+        `exec bash -l`,
+    ]
+        .filter(Boolean)
+        .join("; ");
+    const appId = "org.omarchy.archclaw-command";
+    const launch = `env ARCHCLAW_CMD=${q(command)} uwsm-app -- xdg-terminal-exec --app-id=${appId} --dir=${q(dir)} -e bash -c ${q(script)}`;
+    const base = openApp("terminal:command", { launch, match: "archclaw-command" }, { monitor: req.monitor, alwaysNew: true });
+    return {
+        ...base,
+        id: `terminal.command:${command.slice(0, 60)}`,
+        title: `Run in a terminal: ${command.slice(0, 80)}`,
+        async run(ctx) {
+            await ctx.exec.sh(`notify-send -a archclaw ${q("Claude runs a command")} ${q(command.slice(0, 300))} 2>/dev/null || true`);
+            await base.run(ctx);
+        },
+    };
+}

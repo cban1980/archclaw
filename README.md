@@ -66,6 +66,7 @@ voice mode.
 | `get_status` | Locked, screens, volume, what's playing, active scenes, open apps, every window and monitor |
 | `start_scene`, `stop_scene` | Your saved setups, by name or alias |
 | `open_app`, `close_app`, `move_window`, `focus_window`, `close_window` | Apps and windows on named screens |
+| `run_in_terminal` | Any command line in a visible terminal, in a folder, on a screen ("run npm run dev in ~/Work/app"), if you allow it (`terminalCommands: allow` or `confirm`; off by default), never with sudo |
 | `open_terminal` | A terminal running btop, nvim, lazygit, yazi… (installed TUIs or your own `terminalPrograms`), or ssh to a host from `~/.ssh/config`, in a folder, on a screen |
 | `run_action` | Volume, media keys, screens on/off, lock, do not disturb, night light, keep awake, power |
 | `spotify_search`, `spotify_play` | Any track, album, artist or playlist (also your own) on this PC |
@@ -82,7 +83,9 @@ voice mode.
 - **Power** (shutdown, reboot, sleep, logout) shows a notification with **Cancel** for 30 s first,
   is refused right after boot, and can't be part of a scene. `run_action power.cancel` stops it.
 - **No remote unlock.** Claude can lock the computer, never unlock it.
-- **No shell from Claude.** Apps Claude adds are launched from installed desktop entries or as web
+- **No shell from Claude unless you allow it.** With `terminalCommands: allow` (or `confirm`),
+  `run_in_terminal` runs command lines as you in a visible terminal with a notification, never
+  with sudo. Otherwise: apps Claude adds are launched from installed desktop entries or as web
   apps; scenes Claude saves can only open, close, play and run built-in actions. Omarchy operations
   are a fixed catalog, and every value is checked against a list (themes, fonts, outputs, paired
   devices), an enum or a pattern before it is quoted into the command. Custom commands
