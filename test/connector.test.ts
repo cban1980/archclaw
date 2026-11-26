@@ -32,7 +32,7 @@ before(async () => {
     configPath = join(dir, "config.yaml");
     copyFileSync(new URL("../config.example.yaml", import.meta.url).pathname, configPath);
     const store = new ConfigStore(configPath, join(dir, "state"));
-    store.config.connector = { port: 0, publicUrl: PUBLIC };
+    store.config.connector = { port: 0, publicUrl: PUBLIC, listen: "127.0.0.1", allowFrom: ["127.0.0.1", "::1"] };
     const exec: Executor = { sh: async c => (ran.push(c), 0), test: async () => false, capture: async () => "[]" };
     const registry = new Registry().add(...powerActions, ...desktopActions);
     const safety = new Safety({ countdownSeconds: 0, bootGraceSeconds: 0 }, notifier, quiet);
@@ -167,4 +167,23 @@ test("full OAuth + MCP flow as Claude runs it", async () => {
 
     // 9. A bogus token is rejected.
     assert.equal((await mcp("bogus", { jsonrpc: "2.0", id: 4, method: "tools/list" })).status, 401);
+});
+
+test("only the tunnel's address may connect", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "archclaw-"));
+    const path = join(dir, "config.yaml");
+    copyFileSync(new URL("../config.example.yaml", import.meta.url).pathname, path);
+    const store = new ConfigStore(path, join(dir, "state"));
+    store.config.connector = { port: 0, publicUrl: PUBLIC, listen: "127.0.0.1", allowFrom: ["10.9.9.9"] };
+    const exec: Executor = { sh: async () => 0, test: async () => false, capture: async () => "[]" };
+    const safety = new Safety({ countdownSeconds: 0, bootGraceSeconds: 0 }, notifier, quiet);
+    const auth = new ConnectorStore(join(dir, "connector.json"));
+    auth.setPassword(PASSWORD);
+    const s = await startConnector({ store, registry: new Registry(), dispatcher: new Dispatcher(safety, exec, quiet), exec, safety, log: quiet, notifier, auth });
+    try {
+        const res = await fetch(`http://127.0.0.1:${s.port}/.well-known/oauth-authorization-server`, { headers: { host: "archclaw.test" } });
+        assert.equal(res.status, 403);
+    } finally {
+        s.close();
+    }
 });

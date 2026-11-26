@@ -16,7 +16,7 @@ validates.
 | `screens` | `{}` | Friendly names → Hyprland monitor names (`hyprctl monitors`), e.g. `left: HDMI-A-1`. |
 | `apps` | `{}` | See [Apps](#apps). |
 | `scenes` | `[]` | See [Scenes](#scenes). |
-| `connector` | | `port` (8765, localhost only) and `publicUrl` (your tunnel's https address). |
+| `connector` | | `port` (8765), `publicUrl` (your tunnel's https address), `listen` and `allowFrom` (see [The connector](#the-connector)). |
 | `spotify` | | See [Spotify](#spotify). |
 | `safety` | | `countdownSeconds` (30), `bootGraceSeconds` (120). See [Safety](#safety). |
 
@@ -127,6 +127,19 @@ archclaw connector status              # address, password, signed-in clients
 archclaw connector revoke              # sign every Claude client out
 ```
 
-The connector needs a public https address that forwards to `127.0.0.1:<port>`. The installer
-sets up a Cloudflare Tunnel (`~/.cloudflared/archclaw.yml`, service `archclaw-tunnel`); any other
-reverse proxy or tunnel works too, as long as it passes the original `Host` header.
+The connector needs a public https address that forwards to `<listen>:<port>`. The installer
+sets up a Cloudflare Tunnel on this computer (`~/.cloudflared/archclaw.yml`, service
+`archclaw-tunnel`); any other reverse proxy or tunnel works too, as long as it passes the original
+`Host` header.
+
+**Tunnel on another machine** (a cloudflared LXC, a VPS, a reverse proxy box): let archclaw listen
+on the LAN and accept only that machine, then point a public hostname of that tunnel at
+`http://<this computer's LAN IP>:8765`.
+
+```yaml
+connector:
+  port: 8765
+  publicUrl: https://pc.example.com
+  listen: 192.168.1.20        # this computer's LAN address
+  allowFrom: [192.168.1.5]    # the cloudflared host; everyone else gets 403
+```

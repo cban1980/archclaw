@@ -28,9 +28,17 @@ export async function startConnector(deps: Deps) {
     const mcpUrl = new URL("/mcp", base);
     const provider = new ArchclawOAuthProvider(authStore, { log, notifier: deps.notifier, name: config.name });
 
-    const app = createMcpExpressApp({ host: "127.0.0.1", allowedHosts: [base.host, base.hostname, "localhost", "127.0.0.1"] });
-    // Requests arrive through the local tunnel daemon, which sets X-Forwarded-For.
-    app.set("trust proxy", "loopback");
+    const app = createMcpExpressApp({ host: c.listen, allowedHosts: [base.host, base.hostname, "localhost", "127.0.0.1"] });
+    // Only the tunnel may connect; everything else on the network is turned away before any route.
+    const allowed = new Set(c.allowFrom.flatMap(ip => [ip, `::ffff:${ip}`]));
+    app.use((req, res, next) => {
+        const from = req.socket.remoteAddress ?? "";
+        if (allowed.has(from)) return next();
+        log.warn(`connector: refused a connection from ${from}`);
+        res.status(403).end();
+    });
+    // Requests arrive through the tunnel daemon, which sets X-Forwarded-For.
+    app.set("trust proxy", c.allowFrom);
     app.use(express.urlencoded({ extended: false }));
 
     app.use(mcpAuthRouter({ provider, issuerUrl: base, resourceServerUrl: mcpUrl, scopesSupported: [SCOPE], resourceName: `archclaw (${config.name})` }));
@@ -65,10 +73,10 @@ export async function startConnector(deps: Deps) {
     app.delete("/mcp", auth, (_req, res) => void res.status(405).set("Allow", "POST").end());
 
     const listener = await new Promise<import("node:http").Server>((resolve, reject) => {
-        const l = app.listen(c.port, "127.0.0.1", () => resolve(l));
+        const l = app.listen(c.port, c.listen, () => resolve(l));
         l.on("error", reject);
     });
     const port = (listener.address() as import("node:net").AddressInfo).port;
-    log.info(`connector: listening on 127.0.0.1:${port}, published as ${mcpUrl}`);
+    log.info(`connector: listening on ${c.listen}:${port} (from ${c.allowFrom.join(", ")}), published as ${mcpUrl}`);
     return { provider, port, close: () => listener.close() };
 }

@@ -50,6 +50,8 @@ const scene = z
 export const appSchema = app;
 export const sceneSchema = scene;
 
+const ip = z.union([z.ipv4(), z.ipv6()]);
+
 // Power actions run after an on-screen countdown; bundling them into scenes would hide that.
 export const RISKY = /^power\.(shutdown|reboot|suspend|logout)$/;
 
@@ -75,13 +77,20 @@ const schema = z
         /** The remote MCP server the Claude apps connect to. */
         connector: z
             .object({
-                /** Local port; the tunnel forwards to it. Only bound on 127.0.0.1. */
+                /** Port the tunnel forwards to. */
                 port: z.number().int().min(0).max(65535).default(8765),
+                /**
+                 * Address to listen on. Keep 127.0.0.1 when the tunnel runs on this computer; use this
+                 * computer's LAN address when cloudflared runs elsewhere (another host, LXC, VM).
+                 */
+                listen: ip.default("127.0.0.1"),
+                /** Remote addresses allowed to connect (your tunnel host). Default: localhost only. */
+                allowFrom: z.array(ip).default(["127.0.0.1", "::1"]),
                 /** The public https URL your tunnel publishes, e.g. https://pc.example.com */
                 publicUrl: z.string().url().startsWith("https://").optional(),
             })
             .strict()
-            .default({ port: 8765 }),
+            .default({ port: 8765, listen: "127.0.0.1", allowFrom: ["127.0.0.1", "::1"] }),
         /** Spotify Web API (`archclaw spotify login`): play anything on this PC, move playback here. */
         spotify: z
             .object({
