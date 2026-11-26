@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
+import { join } from "node:path";
+import { createInterface } from "node:readline";
+import { readFileSync, writeFileSync } from "node:fs";
+import { parseDocument } from "yaml";
 import { fileURLToPath } from "node:url";
 import { displayActions } from "./actions/display.ts";
 import { powerActions } from "./actions/power.ts";
@@ -25,6 +29,11 @@ const usage = `usage: archnest <command>
   list                           list built-in actions
   run <action> [--dry-run]       run one action locally, with the same safety rules
   trigger <device> on|off        act as if Google Home switched a device
+  connector password             set the owner password for the Claude connector (signs everyone out)
+  connector status               connector settings and connected clients
+  connector revoke               sign every Claude client out
+  connector enable <https-url>   turn the connector on, published at the given URL (your tunnel)
+  connector disable              turn the connector off
 
 env: ARCHNEST_CONFIG   (default ${paths.config})
      ARCHNEST_STORAGE  (default ${paths.state})
@@ -55,8 +64,25 @@ const LOCAL_SAFETY: SafetyConfig = { countdownSeconds: 30, bootGraceSeconds: 0, 
 
 function core(safetyConfig: SafetyConfig) {
     const exec = createExecutor(log, { dryRun });
-    const safety = new Safety(safetyConfig, createDesktopNotifier(), log);
-    return { exec, safety, dispatcher: new Dispatcher(safety, exec, log) };
+    const notifier = createDesktopNotifier();
+    const safety = new Safety(safetyConfig, notifier, log);
+    return { exec, notifier, safety, dispatcher: new Dispatcher(safety, exec, log) };
+}
+
+const connectorStorePath = () => join(paths.state, "connector.json");
+
+/** Reads a line from the terminal without echoing it (falls back to plain stdin when piped). */
+async function readSecret(prompt: string): Promise<string> {
+    const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: process.stdin.isTTY });
+    if (process.stdin.isTTY) {
+        process.stdout.write(prompt);
+        // Mute everything the readline interface would echo back.
+        (rl as unknown as { _writeToOutput: (s: string) => void })._writeToOutput = () => {};
+    }
+    const line: string = await new Promise(resolve => rl.once("line", resolve));
+    rl.close();
+    if (process.stdin.isTTY) process.stdout.write("\n");
+    return line;
 }
 
 function sh(cmd: string, argv: string[]): string {
@@ -71,10 +97,20 @@ async function main() {
     switch (command) {
         case "serve": {
             const config = loadConfig();
-            const { dispatcher, exec } = core(config.safety);
+            const { dispatcher, exec, notifier } = core(config.safety);
             if (dryRun) log.warn("dry-run: commands will be logged, not run");
             const { startMatter } = await import("./adapters/matter.ts");
             await startMatter({ config, registry, dispatcher, exec, log }, paths.state);
+            if (config.connector.enabled) {
+                // A broken connector must not take the Google Home bridge down with it.
+                try {
+                    const { startConnector } = await import("./adapters/connector/server.ts");
+                    const { ConnectorStore } = await import("./adapters/connector/store.ts");
+                    await startConnector({ config, registry, dispatcher, exec, log, notifier, store: new ConnectorStore(connectorStorePath()) });
+                } catch (err) {
+                    log.error(`connector not started: ${(err as Error).message}`);
+                }
+            }
             return;
         }
         case "init": {
@@ -152,6 +188,39 @@ async function main() {
             const outcome = await dispatcher.dispatch(resolveRef(ref, registry, config), "cli");
             log.info(`${dev.name} ${state}: ${outcome}`);
             process.exitCode = outcome === "ran" ? 0 : 1;
+            return;
+        }
+        case "connector": {
+            const { ConnectorStore } = await import("./adapters/connector/store.ts");
+            const store = new ConnectorStore(connectorStorePath());
+            const sub = rest[0] ?? "status";
+            if (sub === "password") {
+                const pw = await readSecret("New owner password (10+ characters): ");
+                if (process.stdin.isTTY && (await readSecret("Repeat: ")) !== pw) throw new Error("passwords don't match");
+                store.setPassword(pw);
+                console.log("Saved. Connected Claude clients were signed out; restart the service: systemctl --user restart archnest");
+            } else if (sub === "revoke") {
+                store.revokeAll();
+                console.log("Signed every Claude client out. Restart the service to drop live access tokens: systemctl --user restart archnest");
+            } else if (sub === "status") {
+                const c = loadConfig().connector;
+                console.log(`enabled:   ${c.enabled}`);
+                console.log(`url:       ${c.publicUrl ? `${c.publicUrl.replace(/\/$/, "")}/mcp` : "(connector.publicUrl not set)"}`);
+                console.log(`local:     http://127.0.0.1:${c.port}`);
+                console.log(`password:  ${store.hasPassword ? "set" : "not set - run `archnest connector password`"}`);
+                console.log(`clients:   ${store.connectedClients} signed in`);
+            } else if (sub === "enable" || sub === "disable") {
+                const doc = parseDocument(readFileSync(paths.config, "utf8"));
+                if (sub === "enable") {
+                    const url = rest[1];
+                    if (!url?.startsWith("https://")) throw new Error("usage: archnest connector enable https://<your public host>");
+                    doc.setIn(["connector", "publicUrl"], url.replace(/\/+$/, ""));
+                }
+                doc.setIn(["connector", "enabled"], sub === "enable");
+                writeFileSync(paths.config, doc.toString());
+                loadConfig(); // validate before telling the user it worked
+                console.log(`connector ${sub}d in ${paths.config}; apply with: systemctl --user restart archnest`);
+            } else throw new Error("usage: archnest connector password|status|revoke|enable <url>|disable");
             return;
         }
         case "list":

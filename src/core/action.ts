@@ -25,7 +25,7 @@ export type Action = {
 };
 
 /** Where a request came from; shown in notifications and the audit log. */
-export type Source = "matter" | "cli" | "test";
+export type Source = "matter" | "claude" | "cli" | "test";
 
 /** awaiting-repeat: first of two required requests; nothing ran yet. */
 export type Outcome = "ran" | "cancelled" | "blocked" | "failed" | "awaiting-repeat";

@@ -29,6 +29,8 @@
   "homepage": "https://github.com/cban1980/archnest#readme",
   "dependencies": {
     "@matter/main": "^0.18.1",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "express": "^5.3.0",
     "yaml": "^2.9.1",
     "zod": "^4.6.7"
   },
@@ -36,6 +38,7 @@
     "archnest": "src/cli.ts"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@types/node": "^26.6.11",
     "typescript": "^7.0.2"
   },

@@ -27,6 +27,14 @@ apps:
     launch: uwsm-app -- xdg-terminal-exec
     match: ghostty
 
+# Claude connector: lets the Claude apps (phone, desktop, web) control this PC through
+# archnest's tools. Off by default. `./bootstrap.sh` can set it up with Tailscale Funnel,
+# or see README → Claude connector.
+connector:
+  enabled: false
+  port: 8765                 # local only (127.0.0.1); the tunnel forwards to it
+  # publicUrl: https://your-pc.your-tailnet.ts.net
+
 safety:
   countdownSeconds: 30     # risky actions show a notification with a Cancel button first
   bootGraceSeconds: 120    # ignore risky commands right after boot

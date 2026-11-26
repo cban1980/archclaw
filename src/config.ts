@@ -81,6 +81,17 @@ const schema = z
             })
             .strict()
             .default({ countdownSeconds: 30, bootGraceSeconds: 120, repeatWindowSeconds: 60 }),
+        /** Remote MCP server for the Claude apps (see README → Claude connector). */
+        connector: z
+            .object({
+                enabled: z.boolean().default(false),
+                /** Local port; the tunnel forwards to it. Only bound on 127.0.0.1. */
+                port: z.number().int().min(0).max(65535).default(8765),
+                /** The public https URL the tunnel publishes, e.g. https://pc.tail1234.ts.net */
+                publicUrl: z.string().url().startsWith("https://").optional(),
+            })
+            .strict()
+            .default({ enabled: false, port: 8765 }),
         devices: z.array(device).min(1),
     })
     .strict();
