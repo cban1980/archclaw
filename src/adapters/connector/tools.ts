@@ -204,7 +204,7 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
             "start_scene",
             {
                 title: "Start a scene",
-                description: `Starts a saved setup (opens its apps on their screens, etc.). ${words}`,
+                description: `Starts a saved setup (opens its apps on their screens, etc.), e.g. "start mirc", "starta mirc", "dags att jobba". These are the owner's own scene names, not programs. ${words}`,
                 inputSchema: { scene: z.string().describe("Scene name or alias") },
                 annotations: { destructiveHint: false, openWorldHint: false },
             },
@@ -214,7 +214,7 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
             "stop_scene",
             {
                 title: "Stop a scene",
-                description: `Stops a scene (usually closes its apps). ${words}`,
+                description: `Stops a scene (usually closes its apps), e.g. "close mirc", "stäng mirc", "avsluta mirc". These are the owner's own scene names, not programs. ${words}`,
                 inputSchema: { scene: z.string().describe("Scene name or alias") },
                 annotations: { destructiveHint: true, openWorldHint: false },
             },
